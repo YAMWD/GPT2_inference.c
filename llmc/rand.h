@@ -109,11 +109,11 @@ void next_state(mt19937_state* state);
 
 unsigned int randint32(mt19937_state* state);
 
-inline unsigned long long randint64(mt19937_state* state);
+unsigned long long randint64(mt19937_state* state);
 
-inline float randfloat32(mt19937_state* state);
+float randfloat32(mt19937_state* state);
 
-inline double randfloat64(mt19937_state* state);
+double randfloat64(mt19937_state* state);
 
 void uniform_(float* data, unsigned int numel, float from, float to, mt19937_state* state);
 

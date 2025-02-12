@@ -128,15 +128,18 @@ unsigned int randint32(mt19937_state* state) {
     return y;
 }
 
-inline unsigned long long randint64(mt19937_state* state) {
+unsigned long long randint64(mt19937_state* state) {
+    // #pragma HLS INLINE
     return (((unsigned long long)(randint32(state)) << 32) | randint32(state));
 }
 
-inline float randfloat32(mt19937_state* state) {
+float randfloat32(mt19937_state* state) {
+    // #pragma HLS INLINE
     return (randint32(state) & ((1ull << 24) - 1)) * (1.0f / (1ull << 24));
 }
 
-inline double randfloat64(mt19937_state* state) {
+double randfloat64(mt19937_state* state) {
+    // #pragma HLS INLINE
     return (randint64(state) & ((1ull << 53) - 1)) * (1.0 / (1ull << 53));
 }
 
