@@ -1,5 +1,5 @@
 #define TESTING
-#include "train_gpt2.c"
+#include "train_gpt2.h"
 
 // poor man's tensor checker
 int check_tensor(float *a, float *b, int n, const char* label) {
