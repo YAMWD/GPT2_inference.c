@@ -65,9 +65,6 @@ int main(int argc, char *argv[]) {
     printf("batch_size: %d\n", B);
     printf("seq_len: %d\n", T);
 
-    ParameterTensors expected_grads;
-    float* expected_grads_memory = malloc_and_point_parameters(&expected_grads, model.param_sizes);
-
     // inputs and expected outputs, only used for error checking
     int* x = (int*) malloc(B * T * sizeof(int));
     int* y = (int*) malloc(B * T * sizeof(int));
@@ -79,7 +76,6 @@ int main(int argc, char *argv[]) {
     freadCheck(y, sizeof(int), B*T, state_file);
     freadCheck(expected_logits, sizeof(float), B*T*V, state_file);
     freadCheck(expected_loss, sizeof(float), 1, state_file);
-    freadCheck(expected_grads_memory, sizeof(float), model.num_parameters, state_file);
     fcloseCheck(state_file);
 
     struct timespec start, end;
@@ -127,7 +123,6 @@ int main(int argc, char *argv[]) {
     free(y);
     free(expected_logits);
     free(expected_loss);
-    free(expected_grads_memory);
     gpt2_free(&model);
     return 0;
 }
