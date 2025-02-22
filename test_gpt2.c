@@ -89,7 +89,7 @@ int main(int argc, char *argv[]) {
     // error checking at step 0 for reference activations/gradients
     // at this point, target should be equal to expected_logits, let's compare
     int logits_ok = 1;
-    float* calculated_logits = model.acts.logits;
+    float* calculated_logits = model_acts.logits;
     float max_diff = 0.0f;
     for (int bt = 0; bt < B*T; bt++) {
         for (int v = 0; v < V; v++) { // note we only loop to V (ignoring padding)

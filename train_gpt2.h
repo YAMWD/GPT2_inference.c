@@ -83,7 +83,7 @@ typedef struct {
 typedef struct {
     GPT2Config config;
     // the weights (parameters) of the model, and their sizes
-    ParameterTensors params;
+    // ParameterTensors params;
     size_t param_sizes[NUM_PARAMETER_TENSORS];
     // float* params_memory;
     size_t num_parameters;
@@ -96,7 +96,7 @@ typedef struct {
     float* v_memory;
     */
     // the activations of the model, and their sizes
-    ActivationTensors acts;
+    // ActivationTensors acts;
     size_t act_sizes[NUM_ACTIVATION_TENSORS];
     //float* acts_memory;
     size_t num_activations;
@@ -115,6 +115,8 @@ typedef struct {
 
 // move parameters to global memory for HLS
 float *model_params_memory, *model_acts_memory;
+ParameterTensors model_params;
+ActivationTensors model_acts;
 
 void encoder_forward(float* out,
                    int* inp, float* wte, float* wpe,

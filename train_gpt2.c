@@ -441,7 +441,7 @@ void gpt2_build_from_checkpoint(GPT2 *model, const char* checkpoint_path) {
     model->num_parameters = num_parameters;
 
     // read in all the parameters from file
-    model_params_memory = malloc_and_point_parameters(&model->params, model->param_sizes);
+    model_params_memory = malloc_and_point_parameters(&model_params, model->param_sizes);
     freadCheck(model_params_memory, sizeof(float), num_parameters, model_file);
     fcloseCheck(model_file);
 
@@ -495,7 +495,7 @@ void gpt2_forward(GPT2 *model, int* inputs, int* targets, size_t B, size_t T) {
         }
         printf("num_activations: %zu\n", num_activations);
         model->num_activations = num_activations;
-        model_acts_memory = malloc_and_point_activations(&model->acts, model->act_sizes);
+        model_acts_memory = malloc_and_point_activations(&model_acts, model->act_sizes);
         // also create memory for caching inputs and targets
         // model->inputs = (int*)mallocCheck(B * T * sizeof(int));
         // model->targets = (int*)mallocCheck(B * T * sizeof(int)); // might be unused if we never have targets but it's small
@@ -515,8 +515,8 @@ void gpt2_forward(GPT2 *model, int* inputs, int* targets, size_t B, size_t T) {
     }
 
     // forward pass
-    ParameterTensors params = model->params; // for brevity
-    ActivationTensors acts = model->acts;
+    ParameterTensors params = model_params; // for brevity
+    ActivationTensors acts = model_acts;
     float* residual;
     encoder_forward(acts.encoded, inputs, params.wte, params.wpe, B, T, C); // encoding goes into residual[0]
     for (int l = 0; l < L; l++) {
@@ -574,10 +574,10 @@ void gpt2_forward(GPT2 *model, int* inputs, int* targets, size_t B, size_t T) {
 
     // also forward the cross-entropy loss function if we have the targets
     if (targets != NULL) {
-        crossentropy_forward(model->acts.losses, model->acts.probs, targets, B, T, Vp);
+        crossentropy_forward(model_acts.losses, model_acts.probs, targets, B, T, Vp);
         // for convenience also evaluate the mean loss
         float mean_loss = 0.0f;
-        for (int i=0; i<B*T; i++) { mean_loss += model->acts.losses[i]; }
+        for (int i=0; i<B*T; i++) { mean_loss += model_acts.losses[i]; }
         mean_loss /= B*T;
         model->mean_loss = mean_loss;
     } else {
