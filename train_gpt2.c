@@ -332,6 +332,7 @@ float* malloc_and_point_parameters(ParameterTensors* params, size_t* param_sizes
     for (size_t i = 0; i < NUM_PARAMETER_TENSORS; i++) {
         num_parameters += param_sizes[i];
     }
+    // num_parameters = 124475904;
     // malloc all parameters all at once
     float* params_memory = (float*)mallocCheck(num_parameters * sizeof(float));
     // assign all the tensors
@@ -345,6 +346,7 @@ float* malloc_and_point_parameters(ParameterTensors* params, size_t* param_sizes
         *(ptrs[i]) = params_memory_iterator;
         params_memory_iterator += param_sizes[i];
     }
+
     return params_memory;
 }
 
@@ -439,18 +441,18 @@ void gpt2_build_from_checkpoint(GPT2 *model, const char* checkpoint_path) {
     model->num_parameters = num_parameters;
 
     // read in all the parameters from file
-    model->params_memory = malloc_and_point_parameters(&model->params, model->param_sizes);
-    freadCheck(model->params_memory, sizeof(float), num_parameters, model_file);
+    model_params_memory = malloc_and_point_parameters(&model->params, model->param_sizes);
+    freadCheck(model_params_memory, sizeof(float), num_parameters, model_file);
     fcloseCheck(model_file);
 
     // other inits
-    model->acts_memory = NULL;
+    model_acts_memory = NULL;
     // model->grads_memory = NULL;
     // model->m_memory = NULL;
     // model->v_memory = NULL;
     // model->grads_acts_memory = NULL;
-    model->inputs = NULL;
-    model->targets = NULL;
+    // model->inputs = NULL;
+    // model->targets = NULL;
     model->batch_size = 0;
     model->seq_len = 0;
     model->mean_loss = -1.0f; // -1.0f will designate no loss
@@ -460,7 +462,7 @@ void gpt2_forward(GPT2 *model, int* inputs, int* targets, size_t B, size_t T) {
     // targets are optional and could be NULL
 
     // ensure the model was initialized or error out
-    if (model->params_memory == NULL) {
+    if (model_params_memory == NULL) {
         printf("Error: model was not initialized properly.\n");
         exit(1);
     }
@@ -481,7 +483,7 @@ void gpt2_forward(GPT2 *model, int* inputs, int* targets, size_t B, size_t T) {
     }
 
     // allocate space for all the activations if needed (done here, lazily)
-    if(model->acts_memory == NULL) {
+    if(model_acts_memory == NULL) {
         // record the current B,T as well
         model->batch_size = B;
         model->seq_len = T;
@@ -493,10 +495,10 @@ void gpt2_forward(GPT2 *model, int* inputs, int* targets, size_t B, size_t T) {
         }
         printf("num_activations: %zu\n", num_activations);
         model->num_activations = num_activations;
-        model->acts_memory = malloc_and_point_activations(&model->acts, model->act_sizes);
+        model_acts_memory = malloc_and_point_activations(&model->acts, model->act_sizes);
         // also create memory for caching inputs and targets
-        model->inputs = (int*)mallocCheck(B * T * sizeof(int));
-        model->targets = (int*)mallocCheck(B * T * sizeof(int)); // might be unused if we never have targets but it's small
+        // model->inputs = (int*)mallocCheck(B * T * sizeof(int));
+        // model->targets = (int*)mallocCheck(B * T * sizeof(int)); // might be unused if we never have targets but it's small
     } else {
         // validate B,T is consistent with how we've allocated the memory before
         // in principle we could get more clever here in the future, for now this is safest
@@ -585,14 +587,14 @@ void gpt2_forward(GPT2 *model, int* inputs, int* targets, size_t B, size_t T) {
 }
 
 void gpt2_free(GPT2 *model) {
-    free(model->params_memory);
+    free(model_params_memory);
     // free(model->grads_memory);
     // free(model->m_memory);
     // free(model->v_memory);
-    free(model->acts_memory);
+    free(model_acts_memory);
     // free(model->grads_acts_memory);
-    free(model->inputs);
-    free(model->targets);
+    // free(model->inputs);
+    // free(model->targets);
 }
 
 // #ifndef TESTING

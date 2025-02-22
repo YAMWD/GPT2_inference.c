@@ -85,7 +85,7 @@ typedef struct {
     // the weights (parameters) of the model, and their sizes
     ParameterTensors params;
     size_t param_sizes[NUM_PARAMETER_TENSORS];
-    float* params_memory;
+    // float* params_memory;
     size_t num_parameters;
     /*
     // gradients of the weights
@@ -98,7 +98,7 @@ typedef struct {
     // the activations of the model, and their sizes
     ActivationTensors acts;
     size_t act_sizes[NUM_ACTIVATION_TENSORS];
-    float* acts_memory;
+    //float* acts_memory;
     size_t num_activations;
     /*
     // gradients of the activations
@@ -108,10 +108,13 @@ typedef struct {
     // other run state configuration
     int batch_size; // the batch size (B) of current forward pass
     int seq_len; // the sequence length (T) of current forward pass
-    int* inputs; // the input tokens for the current forward pass
-    int* targets; // the target tokens for the current forward pass
+    int inputs[4 * 64]; // the input tokens for the current forward pass
+    int targets[4 * 64]; // the target tokens for the current forward pass
     float mean_loss; // after a forward pass with targets, will be populated with the mean loss
 } GPT2;
+
+// move parameters to global memory for HLS
+float *model_params_memory, *model_acts_memory;
 
 void encoder_forward(float* out,
                    int* inp, float* wte, float* wpe,
