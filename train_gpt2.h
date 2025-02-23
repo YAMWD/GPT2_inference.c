@@ -114,9 +114,9 @@ typedef struct {
 } GPT2;
 
 // move parameters to global memory for HLS
-float *model_params_memory, *model_acts_memory;
-ParameterTensors model_params;
-ActivationTensors model_acts;
+extern float *model_params_memory, *model_acts_memory;
+extern ParameterTensors model_params;
+extern ActivationTensors model_acts;
 
 void encoder_forward(float* out,
                    int* inp, float* wte, float* wpe,

@@ -14,6 +14,10 @@ There will be other versions of this code that specialize it and make it fast.
 // all the individual layers' forward and backward passes
 // B = batch_size, T = sequence_length, C = channels, V = vocab_size
 
+float *model_params_memory, *model_acts_memory;
+ParameterTensors model_params;
+ActivationTensors model_acts;
+
 void encoder_forward(float* out,
                    int* inp, float* wte, float* wpe,
                    int B, int T, int C) {
