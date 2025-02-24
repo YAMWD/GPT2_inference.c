@@ -113,11 +113,6 @@ typedef struct {
     float mean_loss; // after a forward pass with targets, will be populated with the mean loss
 } GPT2;
 
-// move parameters to global memory for HLS
-extern float *model_params_memory, *model_acts_memory;
-extern ParameterTensors model_params;
-extern ActivationTensors model_acts;
-
 void encoder_forward(float* out,
                    int* inp, float* wte, float* wpe,
                    int B, int T, int C); 
@@ -142,7 +137,7 @@ void crossentropy_forward(float* losses,
                           float* probs, int* targets,
                           int B, int T, int Vp);
 
-void gpt2_forward(GPT2 *model, int* inputs, int* targets, size_t B, size_t T);
+void gpt2_forward(GPT2 *model, ParameterTensors *model_params, float *model_params_memory, ActivationTensors *model_acts, float **model_acts_memory, int* inputs, int* targets, size_t B, size_t T);
 
 void fill_in_parameter_sizes(size_t* param_sizes, GPT2Config config);
 
@@ -152,6 +147,6 @@ void fill_in_activation_sizes(size_t* act_sizes, GPT2Config config, int B, int T
 
 float* malloc_and_point_activations(ActivationTensors* acts, size_t* act_sizes);
 
-void gpt2_build_from_checkpoint(GPT2 *model, const char* checkpoint_path);
+void gpt2_build_from_checkpoint(GPT2 *model, ParameterTensors *model_params, float **model_params_memory, float **model_acts_memory, const char* checkpoint_path);
 
-void gpt2_free(GPT2 *model);
+void gpt2_free(float *model_params_memory, float *model_acts_memory);

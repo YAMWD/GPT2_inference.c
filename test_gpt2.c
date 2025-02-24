@@ -40,7 +40,11 @@ int main(int argc, char *argv[]) {
 
     // build the GPT-2 model from a checkpoint
     GPT2 model;
-    gpt2_build_from_checkpoint(&model, "gpt2_124M.bin");
+    float *model_params_memory, *model_acts_memory;
+    ParameterTensors model_params;
+    ActivationTensors model_acts;
+
+    gpt2_build_from_checkpoint(&model, &model_params, &model_params_memory, &model_acts_memory, "gpt2_124M.bin");
 
     int C = model.config.channels;
     int V = model.config.vocab_size;
@@ -84,7 +88,7 @@ int main(int argc, char *argv[]) {
     struct timespec start, end;
     clock_gettime(CLOCK_MONOTONIC, &start);
 
-    gpt2_forward(&model, x, y, B, T);
+    gpt2_forward(&model, &model_params, model_params_memory, &model_acts, &model_acts_memory, x, y, B, T);
 
     clock_gettime(CLOCK_MONOTONIC, &end);
     double time_elapsed_s = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
@@ -126,6 +130,6 @@ int main(int argc, char *argv[]) {
     free(y);
     free(expected_logits);
     free(expected_loss);
-    gpt2_free(&model);
+    gpt2_free(model_params_memory, model_acts_memory);
     return 0;
 }
