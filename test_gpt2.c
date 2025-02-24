@@ -78,6 +78,9 @@ int main(int argc, char *argv[]) {
     freadCheck(expected_loss, sizeof(float), 1, state_file);
     fcloseCheck(state_file);
 
+    for (int i = 0; i < 10; ++i)
+        printf("%d\n", x[i]);
+    fflush(stdout);
     struct timespec start, end;
     clock_gettime(CLOCK_MONOTONIC, &start);
 

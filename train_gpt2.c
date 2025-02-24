@@ -463,6 +463,14 @@ void gpt2_build_from_checkpoint(GPT2 *model, const char* checkpoint_path) {
 }
 
 void gpt2_forward(GPT2 *model, int* inputs, int* targets, size_t B, size_t T) {
+    #pragma HLS INTERFACE m_axi port=model offset=slave bundle=gmem
+    #pragma HLS INTERFACE m_axi port=inputs depth=256 offset=slave bundle=gmem
+    #pragma HLS INTERFACE m_axi port=targets offset=slave bundle=gmem
+
+    #pragma HLS INTERFACE s_axilite port=B
+    #pragma HLS INTERFACE s_axilite port=T
+    #pragma HLS INTERFACE s_axilite port=return
+
     // targets are optional and could be NULL
 
     // ensure the model was initialized or error out
@@ -478,8 +486,11 @@ void gpt2_forward(GPT2 *model, int* inputs, int* targets, size_t B, size_t T) {
     size_t NH = model->config.num_heads;
     size_t C = model->config.channels;
 
+    printf("validating inputs\n");
     // validate inputs, all indices must be in the range [0, V)
     for(int i = 0; i < B * T; i++) {
+        printf("%d ", inputs[i]);
+        fflush(stdout);
         assert(0 <= inputs[i] && inputs[i] < V);
         if (targets != NULL) {
             assert(0 <= targets[i] && targets[i] < V);
