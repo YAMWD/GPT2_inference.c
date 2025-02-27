@@ -137,7 +137,56 @@ void crossentropy_forward(float* losses,
                           float* probs, int* targets,
                           int B, int T, int Vp);
 
-void gpt2_forward(GPT2 *model, ParameterTensors *model_params, float *model_params_memory, ActivationTensors *model_acts, float **model_acts_memory, int* inputs, int* targets, size_t B, size_t T);
+void gpt2_forward(
+    GPT2 *model, 
+
+    float* wte, // (V, C)
+    float* wpe, // (maxT, C)
+    float* ln1w, // (L, C)
+    float* ln1b, // (L, C)
+    float* qkvw, // (L, 3*C, C)
+    float* qkvb, // (L, 3*C)
+    float* attprojw, // (L, C, C)
+    float* attprojb, // (L, C)
+    float* ln2w, // (L, C)
+    float* ln2b, // (L, C)
+    float* fcw, // (L, 4*C, C)
+    float* fcb, // (L, 4*C)
+    float* fcprojw, // (L, C, 4*C)
+    float* fcprojb, // (L, C)
+    float* lnfw, // (C)
+    float* lnfb, // (C)
+        
+    float *model_params_memory, 
+    
+    float* encoded, // (B, T, C)
+    float* ln1, // (L, B, T, C)
+    float* ln1_mean, // (L, B, T)
+    float* ln1_rstd, // (L, B, T)
+    float* qkv, // (L, B, T, 3*C)
+    float* atty, // (L, B, T, C)
+    float* preatt, // (L, B, NH, T, T)
+    float* att, // (L, B, NH, T, T)
+    float* attproj, // (L, B, T, C)
+    float* residual2, // (L, B, T, C)
+    float* ln2, // (L, B, T, C)
+    float* ln2_mean, // (L, B, T)
+    float* ln2_rstd, // (L, B, T)
+    float* fch, // (L, B, T, 4*C)
+    float* fch_gelu, // (L, B, T, 4*C)
+    float* fcproj, // (L, B, T, C)
+    float* residual3, // (L, B, T, C)
+    float* lnf, // (B, T, C)
+    float* lnf_mean, // (B, T)
+    float* lnf_rstd, // (B, T)
+    float* logits, // (B, T, V)
+    float* probs, // (B, T, V)
+    float* losses, // (B, T)
+        
+    int *inputs, 
+    int *targets, 
+    size_t B, 
+    size_t T);
 
 void fill_in_parameter_sizes(size_t* param_sizes, GPT2Config config);
 
@@ -147,6 +196,6 @@ void fill_in_activation_sizes(size_t* act_sizes, GPT2Config config, int B, int T
 
 float* malloc_and_point_activations(ActivationTensors* acts, size_t* act_sizes);
 
-void gpt2_build_from_checkpoint(GPT2 *model, ParameterTensors *model_params, float **model_params_memory, float **model_acts_memory, const char* checkpoint_path);
+void gpt2_build_from_checkpoint(GPT2 *model, ParameterTensors *model_params, float **model_params_memory, ActivationTensors *model_acts, float **model_acts_memory, int B, int T, const char* checkpoint_path);
 
 void gpt2_free(float *model_params_memory, float *model_acts_memory);

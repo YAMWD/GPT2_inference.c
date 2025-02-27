@@ -400,7 +400,7 @@ float* malloc_and_point_activations(ActivationTensors* acts, size_t* act_sizes) 
     return acts_memory;
 }
 
-void gpt2_build_from_checkpoint(GPT2 *model, ParameterTensors *model_params, float **model_params_memory, float **model_acts_memory, const char* checkpoint_path) {
+void gpt2_build_from_checkpoint(GPT2 *model, ParameterTensors *model_params, float **model_params_memory, ActivationTensors *model_acts, float **model_acts_memory, int B, int T, const char* checkpoint_path) {
 
     // read in model from a checkpoint file
     FILE *model_file = fopenCheck(checkpoint_path, "rb");
@@ -445,23 +445,86 @@ void gpt2_build_from_checkpoint(GPT2 *model, ParameterTensors *model_params, flo
     freadCheck(*model_params_memory, sizeof(float), num_parameters, model_file);
     fcloseCheck(model_file);
 
-    if (*model_params_memory == NULL)
-        printf("NNNNNNNnot right\n");
+    // allocate space for all the activations if needed (done here, lazily)
+    // record the current B,T as well
+    model->batch_size = B;
+    model->seq_len = T;
+    // and now allocate the space
+    fill_in_activation_sizes(model->act_sizes, model->config, B, T);
+    size_t num_activations = 0;
+    for (size_t i = 0; i < NUM_ACTIVATION_TENSORS; i++) {
+        num_activations += model->act_sizes[i];
+    }
+    printf("num_activations: %zu\n", num_activations);
+    model->num_activations = num_activations;
+    *model_acts_memory = malloc_and_point_activations(model_acts, model->act_sizes);
+    // also create memory for caching inputs and targets
+    // model->inputs = (int*)mallocCheck(B * T * sizeof(int));
+    // model->targets = (int*)mallocCheck(B * T * sizeof(int)); // might be unused if we never have targets but it's small
 
     // other inits
-    *model_acts_memory = NULL;
+    // *model_acts_memory = NULL;
     // model->grads_memory = NULL;
     // model->m_memory = NULL;
     // model->v_memory = NULL;
     // model->grads_acts_memory = NULL;
     // model->inputs = NULL;
     // model->targets = NULL;
-    model->batch_size = 0;
-    model->seq_len = 0;
+    // model->batch_size = 0;
+    // model->seq_len = 0;
     model->mean_loss = -1.0f; // -1.0f will designate no loss
 }
 
-void gpt2_forward(GPT2 *model, ParameterTensors *model_params, float *model_params_memory, ActivationTensors *model_acts, float **model_acts_memory, int *inputs, int *targets, size_t B, size_t T) {
+void gpt2_forward(
+    GPT2 *model, 
+
+    float* wte, // (V, C)
+    float* wpe, // (maxT, C)
+    float* ln1w, // (L, C)
+    float* ln1b, // (L, C)
+    float* qkvw, // (L, 3*C, C)
+    float* qkvb, // (L, 3*C)
+    float* attprojw, // (L, C, C)
+    float* attprojb, // (L, C)
+    float* ln2w, // (L, C)
+    float* ln2b, // (L, C)
+    float* fcw, // (L, 4*C, C)
+    float* fcb, // (L, 4*C)
+    float* fcprojw, // (L, C, 4*C)
+    float* fcprojb, // (L, C)
+    float* lnfw, // (C)
+    float* lnfb, // (C)
+        
+    float *model_params_memory, 
+    
+    float* encoded, // (B, T, C)
+    float* ln1, // (L, B, T, C)
+    float* ln1_mean, // (L, B, T)
+    float* ln1_rstd, // (L, B, T)
+    float* qkv, // (L, B, T, 3*C)
+    float* atty, // (L, B, T, C)
+    float* preatt, // (L, B, NH, T, T)
+    float* att, // (L, B, NH, T, T)
+    float* attproj, // (L, B, T, C)
+    float* residual2, // (L, B, T, C)
+    float* ln2, // (L, B, T, C)
+    float* ln2_mean, // (L, B, T)
+    float* ln2_rstd, // (L, B, T)
+    float* fch, // (L, B, T, 4*C)
+    float* fch_gelu, // (L, B, T, 4*C)
+    float* fcproj, // (L, B, T, C)
+    float* residual3, // (L, B, T, C)
+    float* lnf, // (B, T, C)
+    float* lnf_mean, // (B, T)
+    float* lnf_rstd, // (B, T)
+    float* logits, // (B, T, V)
+    float* probs, // (B, T, V)
+    float* losses, // (B, T)
+        
+    int *inputs, 
+    int *targets, 
+    size_t B, 
+    size_t T) {
     #pragma HLS INTERFACE m_axi port=model offset=slave bundle=gmem
     #pragma HLS INTERFACE m_axi port=inputs depth=256 offset=slave bundle=gmem
     #pragma HLS INTERFACE m_axi port=targets offset=slave bundle=gmem
@@ -473,7 +536,9 @@ void gpt2_forward(GPT2 *model, ParameterTensors *model_params, float *model_para
     // targets are optional and could be NULL
 
     // ensure the model was initialized or error out
+        
     if (model_params_memory == NULL) {
+        printf("%p\n", model_params_memory);
         printf("Error: model was not initialized properly.\n");
         exit(1);
     }
@@ -484,6 +549,49 @@ void gpt2_forward(GPT2 *model, ParameterTensors *model_params, float *model_para
     size_t L = model->config.num_layers;
     size_t NH = model->config.num_heads;
     size_t C = model->config.channels;
+
+    ParameterTensors model_params;
+    model_params.wte = wte; // (V, C)
+    model_params.wpe = wpe; // (maxT, C)
+    model_params.ln1w = ln1w; // (L, C)
+    model_params.ln1b = ln1b; // (L, C)
+    model_params.qkvw = qkvw; // (L, 3*C, C)
+    model_params.qkvb = qkvb; // (L, 3*C)
+    model_params.attprojw = attprojw; // (L, C, C)
+    model_params.attprojb = attprojb; // (L, C)
+    model_params.ln2w = ln2w; // (L, C)
+    model_params.ln2b = ln2b; // (L, C)
+    model_params.fcw = fcw; // (L, 4*C, C)
+    model_params.fcb = fcb; // (L, 4*C)
+    model_params.fcprojw = fcprojw; // (L, C, 4*C)
+    model_params.fcprojb = fcprojb; // (L, C)
+    model_params.lnfw = lnfw; // (C)
+    model_params.lnfb = lnfb; // (C)
+
+    ActivationTensors model_acts;
+    model_acts.encoded = encoded; // (B, T, C)
+    model_acts.ln1 = ln1; // (L, B, T, C)
+    model_acts.ln1_mean = ln1_mean; // (L, B, T)
+    model_acts.ln1_rstd = ln1_rstd; // (L, B, T)
+    model_acts.qkv = qkv; // (L, B, T, 3*C)
+    model_acts.atty = atty; // (L, B, T, C)
+    model_acts.preatt = preatt; // (L, B, NH, T, T)
+    model_acts.att = att; // (L, B, NH, T, T)
+    model_acts.attproj = attproj; // (L, B, T, C)
+    model_acts.residual2 = residual2; // (L, B, T, C)
+    model_acts.ln2 = ln2; // (L, B, T, C)
+    model_acts.ln2_mean = ln2_mean; // (L, B, T)
+    model_acts.ln2_rstd = ln2_rstd; // (L, B, T)
+    model_acts.fch = fch; // (L, B, T, 4*C)
+    model_acts.fch_gelu = fch_gelu; // (L, B, T, 4*C)
+    model_acts.fcproj = fcproj; // (L, B, T, C)
+    model_acts.residual3 = residual3; // (L, B, T, C)
+    model_acts.lnf = lnf; // (B, T, C)
+    model_acts.lnf_mean = lnf_mean; // (B, T)
+    model_acts.lnf_rstd = lnf_rstd; // (B, T)
+    model_acts.logits = logits; // (B, T, V)
+    model_acts.probs = probs; // (B, T, V)
+    model_acts.losses = losses; // (B, T)
 
     printf("validating inputs\n");
     // validate inputs, all indices must be in the range [0, V)
@@ -496,32 +604,6 @@ void gpt2_forward(GPT2 *model, ParameterTensors *model_params, float *model_para
         }
     }
 
-    // allocate space for all the activations if needed (done here, lazily)
-    if(*model_acts_memory == NULL) {
-        // record the current B,T as well
-        model->batch_size = B;
-        model->seq_len = T;
-        // and now allocate the space
-        fill_in_activation_sizes(model->act_sizes, model->config, B, T);
-        size_t num_activations = 0;
-        for (size_t i = 0; i < NUM_ACTIVATION_TENSORS; i++) {
-            num_activations += model->act_sizes[i];
-        }
-        printf("num_activations: %zu\n", num_activations);
-        model->num_activations = num_activations;
-        *model_acts_memory = malloc_and_point_activations(model_acts, model->act_sizes);
-        // also create memory for caching inputs and targets
-        // model->inputs = (int*)mallocCheck(B * T * sizeof(int));
-        // model->targets = (int*)mallocCheck(B * T * sizeof(int)); // might be unused if we never have targets but it's small
-    } else {
-        // validate B,T is consistent with how we've allocated the memory before
-        // in principle we could get more clever here in the future, for now this is safest
-        if (B != model->batch_size || T != model->seq_len) {
-            printf("Model: B=%d T=%d, Desired: B=%d T=%d\n", model->batch_size, model->seq_len, (int)B, (int)T);
-            exit(EXIT_FAILURE);
-        }
-    }
-
     // cache the inputs/targets
     memcpy(model->inputs, inputs, B * T * sizeof(int));
     if (targets != NULL) {
@@ -529,8 +611,8 @@ void gpt2_forward(GPT2 *model, ParameterTensors *model_params, float *model_para
     }
 
     // forward pass
-    ParameterTensors params = *model_params; // for brevity
-    ActivationTensors acts = *model_acts;
+    ParameterTensors params = model_params; // for brevity
+    ActivationTensors acts = model_acts;
     float* residual;
     encoder_forward(acts.encoded, inputs, params.wte, params.wpe, B, T, C); // encoding goes into residual[0]
     for (int l = 0; l < L; l++) {
@@ -588,10 +670,10 @@ void gpt2_forward(GPT2 *model, ParameterTensors *model_params, float *model_para
 
     // also forward the cross-entropy loss function if we have the targets
     if (targets != NULL) {
-        crossentropy_forward(model_acts->losses, model_acts->probs, targets, B, T, Vp);
+        crossentropy_forward(model_acts.losses, model_acts.probs, targets, B, T, Vp);
         // for convenience also evaluate the mean loss
         float mean_loss = 0.0f;
-        for (int i=0; i<B*T; i++) { mean_loss += model_acts->losses[i]; }
+        for (int i=0; i<B*T; i++) { mean_loss += model_acts.losses[i]; }
         mean_loss /= B*T;
         model->mean_loss = mean_loss;
     } else {

@@ -40,17 +40,9 @@ int main(int argc, char *argv[]) {
 
     // build the GPT-2 model from a checkpoint
     GPT2 model;
-    float *model_params_memory, *model_acts_memory;
+    float *model_params_memory = NULL, *model_acts_memory;
     ParameterTensors model_params;
     ActivationTensors model_acts;
-
-    gpt2_build_from_checkpoint(&model, &model_params, &model_params_memory, &model_acts_memory, "gpt2_124M.bin");
-
-    int C = model.config.channels;
-    int V = model.config.vocab_size;
-    int Vp = model.config.padded_vocab_size;
-    int maxT = model.config.max_seq_len;
-    int L = model.config.num_layers;
 
     // load additional information that we will use for debugging and error checking
     FILE *state_file = fopen("gpt2_124M_debug_state.bin", "rb");
@@ -68,6 +60,20 @@ int main(int argc, char *argv[]) {
     printf("[State]\n");
     printf("batch_size: %d\n", B);
     printf("seq_len: %d\n", T);
+
+    if (model_params_memory == NULL)
+        printf("NULL %p\n", model_params_memory);
+    gpt2_build_from_checkpoint(&model, &model_params, &model_params_memory, &model_acts, &model_acts_memory, B, T, "gpt2_124M.bin");
+    if (model_params_memory == NULL)
+        printf("NULL\n");
+    else
+        printf("%p\n", model_params_memory);
+
+    int C = model.config.channels;
+    int V = model.config.vocab_size;
+    int Vp = model.config.padded_vocab_size;
+    int maxT = model.config.max_seq_len;
+    int L = model.config.num_layers;
 
     // inputs and expected outputs, only used for error checking
     int* x = (int*) malloc(B * T * sizeof(int));
@@ -88,7 +94,53 @@ int main(int argc, char *argv[]) {
     struct timespec start, end;
     clock_gettime(CLOCK_MONOTONIC, &start);
 
-    gpt2_forward(&model, &model_params, model_params_memory, &model_acts, &model_acts_memory, x, y, B, T);
+    gpt2_forward(
+        &model, 
+
+        model_params.wte, // (V, C)
+        model_params.wpe, // (maxT, C)
+        model_params.ln1w, // (L, C)
+        model_params.ln1b, // (L, C)
+        model_params.qkvw, // (L, 3*C, C)
+        model_params.qkvb, // (L, 3*C)
+        model_params.attprojw, // (L, C, C)
+        model_params.attprojb, // (L, C)
+        model_params.ln2w, // (L, C)
+        model_params.ln2b, // (L, C)
+        model_params.fcw, // (L, 4*C, C)
+        model_params.fcb, // (L, 4*C)
+        model_params.fcprojw, // (L, C, 4*C)
+        model_params.fcprojb, // (L, C)
+        model_params.lnfw, // (C)
+        model_params.lnfb, // (C)
+
+        model_params_memory, 
+        
+        model_acts.encoded, // (B, T, C)
+        model_acts.ln1, // (L, B, T, C)
+        model_acts.ln1_mean, // (L, B, T)
+        model_acts.ln1_rstd, // (L, B, T)
+        model_acts.qkv, // (L, B, T, 3*C)
+        model_acts.atty, // (L, B, T, C)
+        model_acts.preatt, // (L, B, NH, T, T)
+        model_acts.att, // (L, B, NH, T, T)
+        model_acts.attproj, // (L, B, T, C)
+        model_acts.residual2, // (L, B, T, C)
+        model_acts.ln2, // (L, B, T, C)
+        model_acts.ln2_mean, // (L, B, T)
+        model_acts.ln2_rstd, // (L, B, T)
+        model_acts.fch, // (L, B, T, 4*C)
+        model_acts.fch_gelu, // (L, B, T, 4*C)
+        model_acts.fcproj, // (L, B, T, C)
+        model_acts.residual3, // (L, B, T, C)
+        model_acts.lnf, // (B, T, C)
+        model_acts.lnf_mean, // (B, T)
+        model_acts.lnf_rstd, // (B, T)
+        model_acts.logits, // (B, T, V)
+        model_acts.probs, // (B, T, V)
+        model_acts.losses, // (B, T)
+
+        x, y, B, T);
 
     clock_gettime(CLOCK_MONOTONIC, &end);
     double time_elapsed_s = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
