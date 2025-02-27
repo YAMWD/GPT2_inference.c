@@ -61,13 +61,9 @@ int main(int argc, char *argv[]) {
     printf("batch_size: %d\n", B);
     printf("seq_len: %d\n", T);
 
-    if (model_params_memory == NULL)
-        printf("NULL %p\n", model_params_memory);
     gpt2_build_from_checkpoint(&model, &model_params, &model_params_memory, &model_acts, &model_acts_memory, B, T, "gpt2_124M.bin");
-    if (model_params_memory == NULL)
-        printf("NULL\n");
-    else
-        printf("%p\n", model_params_memory);
+
+    printf("Size of struct: %lu bytes\n", sizeof(model));
 
     int C = model.config.channels;
     int V = model.config.vocab_size;

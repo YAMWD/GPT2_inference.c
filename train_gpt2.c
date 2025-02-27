@@ -525,9 +525,50 @@ void gpt2_forward(
     int *targets, 
     size_t B, 
     size_t T) {
-    #pragma HLS INTERFACE m_axi port=model offset=slave bundle=gmem
-    #pragma HLS INTERFACE m_axi port=inputs depth=256 offset=slave bundle=gmem
-    #pragma HLS INTERFACE m_axi port=targets offset=slave bundle=gmem
+    #pragma HLS INTERFACE m_axi port=model depth = 604 offset=slave bundle=gmem
+
+	#pragma HLS INTERFACE m_axi port = wte depth = 38597376 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = wpe depth = 786432 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = ln1w depth = 9216 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = ln1b depth = 9216 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = qkvw depth = 21233664 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = qkvb depth = 27648 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = attprojw depth = 7077888 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = attprojb depth = 9216 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = ln2w depth = 9216 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = ln2b depth = 9216 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = fcw depth = 28311552 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = fcb depth = 36864 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = fcprojw depth = 28311552 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = fcprojb depth = 9216 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = lnfw depth = 768 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = lnfb depth = 768 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = encoded depth = 196608 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = ln1 depth = 2359296 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = ln1_mean depth = 3072 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = ln1_rstd depth = 3072 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = qkv depth = 7077888 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = atty depth = 2359296 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = preatt depth = 2359296 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = att depth = 2359296 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = attproj depth = 2359296 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = residual2 depth = 2359296 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = ln2 depth = 2359296 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = ln2_mean depth = 3072 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = ln2_rstd depth = 3072 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = fch depth = 9437184 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = fch_gelu depth = 9437184 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = fcproj depth = 2359296 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = residual3 depth = 2359296 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = lnf depth = 196608 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = lnf_mean depth = 256 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = lnf_rstd depth = 256 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = logits depth = 12865792 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = probs depth = 12865792 offset = slave bundle = gmem
+	#pragma HLS INTERFACE m_axi port = losses depth = 256 offset = slave bundle = gmem
+
+    #pragma HLS INTERFACE bram port=inputs depth = 256
+    #pragma HLS INTERFACE bram port=targets depth = 256 
 
     #pragma HLS INTERFACE s_axilite port=B
     #pragma HLS INTERFACE s_axilite port=T
