@@ -597,7 +597,7 @@ void gpt2_forward(
     // validate inputs, all indices must be in the range [0, V)
     for(int i = 0; i < B * T; i++) {
         printf("%d ", inputs[i]);
-        fflush(stdout);
+        // fflush(stdout);
         assert(0 <= inputs[i] && inputs[i] < V);
         if (targets != NULL) {
             assert(0 <= targets[i] && targets[i] < V);

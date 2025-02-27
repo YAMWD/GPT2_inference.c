@@ -90,7 +90,7 @@ int main(int argc, char *argv[]) {
 
     for (int i = 0; i < 10; ++i)
         printf("%d\n", x[i]);
-    fflush(stdout);
+    // fflush(stdout);
     struct timespec start, end;
     clock_gettime(CLOCK_MONOTONIC, &start);
 
