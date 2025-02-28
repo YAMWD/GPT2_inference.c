@@ -155,10 +155,7 @@ void gpt2_forward(
     float* fcprojw, // (L, C, 4*C)
     float* fcprojb, // (L, C)
     float* lnfw, // (C)
-    float* lnfb, // (C)
-        
-    float *model_params_memory, 
-    
+    float* lnfb, // (C)    
     float* encoded, // (B, T, C)
     float* ln1, // (L, B, T, C)
     float* ln1_mean, // (L, B, T)

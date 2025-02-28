@@ -44,6 +44,8 @@ int main(int argc, char *argv[]) {
     ParameterTensors model_params;
     ActivationTensors model_acts;
 
+    printf("Size of struct: %lu bytes\n", sizeof(model));
+
     // load additional information that we will use for debugging and error checking
     FILE *state_file = fopen("gpt2_124M_debug_state.bin", "rb");
     if (state_file == NULL) { printf("Error opening state file\n"); return 1; }
@@ -63,7 +65,12 @@ int main(int argc, char *argv[]) {
 
     gpt2_build_from_checkpoint(&model, &model_params, &model_params_memory, &model_acts, &model_acts_memory, B, T, "gpt2_124M.bin");
 
-    printf("Size of struct: %lu bytes\n", sizeof(model));
+    // ensure the model was initialized or error out
+    if (model_params_memory == NULL) {
+        printf("%p\n", model_params_memory);
+        printf("Error: model was not initialized properly.\n");
+        exit(1);
+    }
 
     int C = model.config.channels;
     int V = model.config.vocab_size;
@@ -108,10 +115,7 @@ int main(int argc, char *argv[]) {
         model_params.fcprojw, // (L, C, 4*C)
         model_params.fcprojb, // (L, C)
         model_params.lnfw, // (C)
-        model_params.lnfb, // (C)
-
-        model_params_memory, 
-        
+        model_params.lnfb, // (C)        
         model_acts.encoded, // (B, T, C)
         model_acts.ln1, // (L, B, T, C)
         model_acts.ln1_mean, // (L, B, T)

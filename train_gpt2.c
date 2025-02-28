@@ -493,10 +493,7 @@ void gpt2_forward(
     float* fcprojw, // (L, C, 4*C)
     float* fcprojb, // (L, C)
     float* lnfw, // (C)
-    float* lnfb, // (C)
-        
-    float *model_params_memory, 
-    
+    float* lnfb, // (C)    
     float* encoded, // (B, T, C)
     float* ln1, // (L, B, T, C)
     float* ln1_mean, // (L, B, T)
@@ -575,14 +572,6 @@ void gpt2_forward(
     #pragma HLS INTERFACE s_axilite port=return
 
     // targets are optional and could be NULL
-
-    // ensure the model was initialized or error out
-        
-    if (model_params_memory == NULL) {
-        printf("%p\n", model_params_memory);
-        printf("Error: model was not initialized properly.\n");
-        exit(1);
-    }
 
     // convenience parameters (size_t to help prevent int overflow)
     size_t V = model->config.vocab_size;
