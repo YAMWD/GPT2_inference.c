@@ -99,7 +99,7 @@ int main(int argc, char *argv[]) {
 
     gpt2_forward(
         &model, 
-
+        
         model_params.wte, // (V, C)
         model_params.wpe, // (maxT, C)
         model_params.ln1w, // (L, C)
@@ -142,6 +142,25 @@ int main(int argc, char *argv[]) {
 
         x, y, B, T);
 
+    matmul_forward(model_acts.logits, model_acts.lnf, model_params.wte, NULL, B, T, C, Vp);
+    softmax_forward(model_acts.probs, model_acts.logits, B, T, V, Vp);
+    printf("softmax done\n");
+
+    // also forward the cross-entropy loss function if we have the targets
+    if (y != NULL) {
+        printf("computing CE loss\n");
+        crossentropy_forward(model_acts.losses, model_acts.probs, y, B, T, Vp);
+        // for convenience also evaluate the mean loss
+        float mean_loss = 0.0f;
+        for (int i=0; i<B*T; i++) { mean_loss += model_acts.losses[i]; }
+        mean_loss /= B*T;
+        model.mean_loss = mean_loss;
+    } else {
+        // if we don't have targets, we don't have a loss
+        model.mean_loss = -1.0f;
+    }
+
+    printf("forward pass done\n");
     clock_gettime(CLOCK_MONOTONIC, &end);
     double time_elapsed_s = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
 

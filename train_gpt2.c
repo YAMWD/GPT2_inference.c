@@ -255,9 +255,10 @@ void softmax_forward(float* probs, float* logits, int B, int T, int V, int Vp) {
     // input: logits is (B,T,Vp) of the unnormalized log probabilities
     // Vp is the padded vocab size (for efficiency), V is the "real" vocab size
     // example: Vp is 50304 and V is 50257
-    #pragma omp parallel for collapse(2)
+    // #pragma omp parallel for collapse(2)
     for (int b = 0; b < B; b++) {
         for (int t = 0; t < T; t++) {
+            printf("processing token %d in batch %d\n", t, b);
             // probs <- softmax(logits)
             float* logits_bt = logits + b * T * Vp + t * Vp;
             float* probs_bt = probs + b * T * Vp + t * Vp;
@@ -269,20 +270,24 @@ void softmax_forward(float* probs, float* logits, int B, int T, int V, int Vp) {
                     maxval = logits_bt[i];
                 }
             }
+            printf("maxVal calculated\n");
             float sum = 0.0f;
             for (int i = 0; i < V; i++) {
                 probs_bt[i] = expf(logits_bt[i] - maxval);
                 sum += probs_bt[i];
             }
+            printf("prob calculated\n");
             // note we only loop to V, leaving the padded dimensions
             for (int i = 0; i < V; i++) {
                 probs_bt[i] /= sum;
             }
+            printf("prob normed\n");
             // for extra super safety we may wish to include this too,
             // forcing the probabilities here to be zero, but it shouldn't matter
             for (int i = V; i < Vp; i++) {
                 probs_bt[i] = 0.0f;
             }
+            printf("forced padded probs to be zero\n");
         }
     }
 }
@@ -517,55 +522,55 @@ void gpt2_forward(
     float* logits, // (B, T, V)
     float* probs, // (B, T, V)
     float* losses, // (B, T)
-        
+    
     int *inputs, 
     int *targets, 
     size_t B, 
     size_t T) {
-    #pragma HLS INTERFACE m_axi port=model depth = 604 offset=slave bundle=gmem
+    #pragma HLS INTERFACE bram port=model
 
-	#pragma HLS INTERFACE m_axi port = wte num_write_outstanding = 1 max_write_burst_length = 2 depth = 38597376 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = wpe num_write_outstanding = 1 max_write_burst_length = 2 depth = 786432 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = ln1w num_write_outstanding = 1 max_write_burst_length = 2 depth = 9216 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = ln1b num_write_outstanding = 1 max_write_burst_length = 2 depth = 9216 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = qkvw num_write_outstanding = 1 max_write_burst_length = 2 depth = 21233664 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = qkvb num_write_outstanding = 1 max_write_burst_length = 2 depth = 27648 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = attprojw num_write_outstanding = 1 max_write_burst_length = 2 depth = 7077888 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = attprojb num_write_outstanding = 1 max_write_burst_length = 2 depth = 9216 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = ln2w num_write_outstanding = 1 max_write_burst_length = 2 depth = 9216 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = ln2b num_write_outstanding = 1 max_write_burst_length = 2 depth = 9216 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = fcw num_write_outstanding = 1 max_write_burst_length = 2 depth = 28311552 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = fcb num_write_outstanding = 1 max_write_burst_length = 2 depth = 36864 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = fcprojw num_write_outstanding = 1 max_write_burst_length = 2 depth = 28311552 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = fcprojb num_write_outstanding = 1 max_write_burst_length = 2 depth = 9216 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = lnfw num_write_outstanding = 1 max_write_burst_length = 2 depth = 768 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = lnfb num_write_outstanding = 1 max_write_burst_length = 2 depth = 768 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = encoded num_write_outstanding = 1 max_write_burst_length = 2 depth = 196608 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = ln1 num_write_outstanding = 1 max_write_burst_length = 2 depth = 2359296 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = ln1_mean num_write_outstanding = 1 max_write_burst_length = 2 depth = 3072 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = ln1_rstd num_write_outstanding = 1 max_write_burst_length = 2 depth = 3072 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = qkv num_write_outstanding = 1 max_write_burst_length = 2 depth = 7077888 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = atty num_write_outstanding = 1 max_write_burst_length = 2 depth = 2359296 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = preatt num_write_outstanding = 1 max_write_burst_length = 2 depth = 2359296 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = att num_write_outstanding = 1 max_write_burst_length = 2 depth = 2359296 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = attproj num_write_outstanding = 1 max_write_burst_length = 2 depth = 2359296 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = residual2 num_write_outstanding = 1 max_write_burst_length = 2 depth = 2359296 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = ln2 num_write_outstanding = 1 max_write_burst_length = 2 depth = 2359296 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = ln2_mean num_write_outstanding = 1 max_write_burst_length = 2 depth = 3072 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = ln2_rstd num_write_outstanding = 1 max_write_burst_length = 2 depth = 3072 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = fch num_write_outstanding = 1 max_write_burst_length = 2 depth = 9437184 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = fch_gelu num_write_outstanding = 1 max_write_burst_length = 2 depth = 9437184 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = fcproj num_write_outstanding = 1 max_write_burst_length = 2 depth = 2359296 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = residual3 num_write_outstanding = 1 max_write_burst_length = 2 depth = 2359296 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = lnf num_write_outstanding = 1 max_write_burst_length = 2 depth = 196608 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = lnf_mean num_write_outstanding = 1 max_write_burst_length = 2 depth = 256 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = lnf_rstd num_write_outstanding = 1 max_write_burst_length = 2 depth = 256 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = logits num_write_outstanding = 1 max_write_burst_length = 2 depth = 12865792 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = probs num_write_outstanding = 1 max_write_burst_length = 2 depth = 12865792 offset = slave bundle = gmem
-	#pragma HLS INTERFACE m_axi port = losses num_write_outstanding = 1 max_write_burst_length = 2 depth = 256 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = wte depth = 38597376 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = wpe depth = 786432 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = ln1w depth = 9216 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = ln1b depth = 9216 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = qkvw depth = 21233664 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = qkvb depth = 27648 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = attprojw depth = 7077888 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = attprojb depth = 9216 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = ln2w depth = 9216 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = ln2b depth = 9216 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = fcw depth = 28311552 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = fcb depth = 36864 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = fcprojw depth = 28311552 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = fcprojb depth = 9216 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = lnfw depth = 768 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = lnfb depth = 768 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = encoded depth = 196608 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = ln1 depth = 2359296 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = ln1_mean depth = 3072 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = ln1_rstd depth = 3072 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = qkv depth = 7077888 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = atty depth = 2359296 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = preatt depth = 2359296 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = att depth = 2359296 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = attproj depth = 2359296 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = residual2 depth = 2359296 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = ln2 depth = 2359296 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = ln2_mean depth = 3072 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = ln2_rstd depth = 3072 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = fch depth = 9437184 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = fch_gelu depth = 9437184 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = fcproj depth = 2359296 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = residual3 depth = 2359296 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = lnf depth = 196608 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = lnf_mean depth = 256 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = lnf_rstd depth = 256 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = logits depth = 12865792 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = probs depth = 12865792 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = losses depth = 256 offset = slave bundle = gmem
 
-    #pragma HLS INTERFACE bram port=inputs num_write_outstanding = 1 max_write_burst_length = 2 depth = 256
-    #pragma HLS INTERFACE bram port=targets num_write_outstanding = 1 max_write_burst_length = 2 depth = 256
+    #pragma HLS INTERFACE bram port = inputs depth = 256
+    #pragma HLS INTERFACE bram port = targets depth = 256
  
     #pragma HLS INTERFACE s_axilite port=B
     #pragma HLS INTERFACE s_axilite port=T
@@ -579,7 +584,7 @@ void gpt2_forward(
     size_t L = model->config.num_layers;
     size_t NH = model->config.num_heads;
     size_t C = model->config.channels;
-
+   
     ParameterTensors model_params;
     model_params.wte = wte; // (V, C)
     model_params.wpe = wpe; // (maxT, C)
@@ -646,6 +651,7 @@ void gpt2_forward(
     float* residual;
     encoder_forward(acts.encoded, inputs, params.wte, params.wpe, B, T, C); // encoding goes into residual[0]
     for (int l = 0; l < L; l++) {
+        printf("computing layer %d\n", l);
 
         residual = l == 0 ? acts.encoded : acts.residual3 + (l-1) * B * T * C;
 
@@ -682,24 +688,40 @@ void gpt2_forward(
         float* l_residual3 = acts.residual3 + l * B * T * C;
 
         // now do the forward pass
+        printf("computing LN\n");
         layernorm_forward(l_ln1, l_ln1_mean, l_ln1_rstd, residual, l_ln1w, l_ln1b, B, T, C);
+        printf("computing matmul\n");
         matmul_forward(l_qkv, l_ln1, l_qkvw, l_qkvb, B, T, C, 3*C);
+        printf("computing attn\n");
         attention_forward(l_atty, l_preatt, l_att, l_qkv, B, T, C, NH);
+        printf("computing matmul\n");
         matmul_forward(l_attproj, l_atty, l_attprojw, l_attprojb, B, T, C, C);
+        printf("computing res\n");
         residual_forward(l_residual2, residual, l_attproj, B*T*C);
+        printf("computing LN\n");
         layernorm_forward(l_ln2, l_ln2_mean, l_ln2_rstd, l_residual2, l_ln2w, l_ln2b, B, T, C);
+        printf("computing matmul\n");
         matmul_forward(l_fch, l_ln2, l_fcw, l_fcb, B, T, C, 4*C);
+        printf("computing gelu\n");
         gelu_forward(l_fch_gelu, l_fch, B*T*4*C);
+        printf("computing matmul\n");
         matmul_forward(l_fcproj, l_fch_gelu, l_fcprojw, l_fcprojb, B, T, 4*C, C);
+        printf("computing res\n");
         residual_forward(l_residual3, l_residual2, l_fcproj, B*T*C);
     }
     residual = acts.residual3 + (L-1) * B * T * C; // last residual is in residual3
+    printf("computing LN\n");
     layernorm_forward(acts.lnf, acts.lnf_mean, acts.lnf_rstd, residual, params.lnfw, params.lnfb, B, T, C);
+    /*
+    printf("computing matmul\n");
     matmul_forward(acts.logits, acts.lnf, params.wte, NULL, B, T, C, Vp);
+    printf("computing softmax\n");
     softmax_forward(acts.probs, acts.logits, B, T, V, Vp);
+    printf("softmax done\n");    
 
     // also forward the cross-entropy loss function if we have the targets
     if (targets != NULL) {
+        printf("computing CE loss\n");
         crossentropy_forward(model_acts.losses, model_acts.probs, targets, B, T, Vp);
         // for convenience also evaluate the mean loss
         float mean_loss = 0.0f;
@@ -710,6 +732,8 @@ void gpt2_forward(
         // if we don't have targets, we don't have a loss
         model->mean_loss = -1.0f;
     }
+    */
+    printf("all the computation are done\n");
 }
 
 void gpt2_free(float *model_params_memory, float *model_acts_memory) {

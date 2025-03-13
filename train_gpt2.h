@@ -139,7 +139,7 @@ void crossentropy_forward(float* losses,
 
 void gpt2_forward(
     GPT2 *model, 
-
+    
     float* wte, // (V, C)
     float* wpe, // (maxT, C)
     float* ln1w, // (L, C)
@@ -179,7 +179,7 @@ void gpt2_forward(
     float* logits, // (B, T, V)
     float* probs, // (B, T, V)
     float* losses, // (B, T)
-        
+    
     int *inputs, 
     int *targets, 
     size_t B, 
