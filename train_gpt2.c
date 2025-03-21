@@ -255,9 +255,10 @@ void softmax_forward(float* probs, float* logits, int B, int T, int V, int Vp) {
     // input: logits is (B,T,Vp) of the unnormalized log probabilities
     // Vp is the padded vocab size (for efficiency), V is the "real" vocab size
     // example: Vp is 50304 and V is 50257
-    #pragma omp parallel for collapse(2)
+    // #pragma omp parallel for collapse(2)
     for (int b = 0; b < B; b++) {
         for (int t = 0; t < T; t++) {
+            printf("processing token %d in batch %d\n", t, b);
             // probs <- softmax(logits)
             float* logits_bt = logits + b * T * Vp + t * Vp;
             float* probs_bt = probs + b * T * Vp + t * Vp;
@@ -269,20 +270,24 @@ void softmax_forward(float* probs, float* logits, int B, int T, int V, int Vp) {
                     maxval = logits_bt[i];
                 }
             }
+            printf("maxVal calculated\n");
             float sum = 0.0f;
             for (int i = 0; i < V; i++) {
                 probs_bt[i] = expf(logits_bt[i] - maxval);
                 sum += probs_bt[i];
             }
+            printf("prob calculated\n");
             // note we only loop to V, leaving the padded dimensions
             for (int i = 0; i < V; i++) {
                 probs_bt[i] /= sum;
             }
+            printf("prob normed\n");
             // for extra super safety we may wish to include this too,
             // forcing the probabilities here to be zero, but it shouldn't matter
             for (int i = V; i < Vp; i++) {
                 probs_bt[i] = 0.0f;
             }
+            printf("forced padded probs to be zero\n");
         }
     }
 }
@@ -334,7 +339,11 @@ float* malloc_and_point_parameters(ParameterTensors* params, size_t* param_sizes
     }
     // num_parameters = 124475904;
     // malloc all parameters all at once
-    float* params_memory = (float*)mallocCheck(num_parameters * sizeof(float));
+    // float* params_memory = (float*)mallocCheck(num_parameters * sizeof(float));
+    void *p;
+    posix_memalign(&p, 4096, num_parameters * sizeof(float));
+    float *params_memory = (float *)p;
+    //float* params_memory = (float*)aligned_alloc(num_parameters, num_parameters * sizeof(float));
     // assign all the tensors
     float** ptrs[] = {
         &params->wte, &params->wpe, &params->ln1w, &params->ln1b, &params->qkvw, &params->qkvb,
@@ -385,7 +394,10 @@ float* malloc_and_point_activations(ActivationTensors* acts, size_t* act_sizes) 
     for (size_t i = 0; i < NUM_ACTIVATION_TENSORS; i++) {
         num_activations += act_sizes[i];
     }
-    float* acts_memory = (float*)mallocCheck(num_activations * sizeof(float));
+    void *p;
+    posix_memalign(&p, 4096, num_activations * sizeof(float));
+    float *acts_memory = (float *)p;
+    //float* acts_memory = (float*)mallocCheck(num_activations * sizeof(float));
     float** ptrs[] = {
         &acts->encoded, &acts->ln1, &acts->ln1_mean, &acts->ln1_rstd, &acts->qkv, &acts->atty,
         &acts->preatt, &acts->att, &acts->attproj, &acts->residual2, &acts->ln2, &acts->ln2_mean,
@@ -400,7 +412,7 @@ float* malloc_and_point_activations(ActivationTensors* acts, size_t* act_sizes) 
     return acts_memory;
 }
 
-void gpt2_build_from_checkpoint(GPT2 *model, ParameterTensors *model_params, float **model_params_memory, float **model_acts_memory, const char* checkpoint_path) {
+void gpt2_build_from_checkpoint(GPT2 *model, ParameterTensors *model_params, float **model_params_memory, ActivationTensors *model_acts, float **model_acts_memory, int B, int T, const char* checkpoint_path) {
 
     // read in model from a checkpoint file
     FILE *model_file = fopenCheck(checkpoint_path, "rb");
@@ -445,38 +457,133 @@ void gpt2_build_from_checkpoint(GPT2 *model, ParameterTensors *model_params, flo
     freadCheck(*model_params_memory, sizeof(float), num_parameters, model_file);
     fcloseCheck(model_file);
 
-    if (*model_params_memory == NULL)
-        printf("NNNNNNNnot right\n");
+    // allocate space for all the activations if needed (done here, lazily)
+    // record the current B,T as well
+    model->batch_size = B;
+    model->seq_len = T;
+    // and now allocate the space
+    fill_in_activation_sizes(model->act_sizes, model->config, B, T);
+    size_t num_activations = 0;
+    for (size_t i = 0; i < NUM_ACTIVATION_TENSORS; i++) {
+        num_activations += model->act_sizes[i];
+    }
+    printf("num_activations: %zu\n", num_activations);
+    model->num_activations = num_activations;
+    *model_acts_memory = malloc_and_point_activations(model_acts, model->act_sizes);
+    // also create memory for caching inputs and targets
+    // model->inputs = (int*)mallocCheck(B * T * sizeof(int));
+    // model->targets = (int*)mallocCheck(B * T * sizeof(int)); // might be unused if we never have targets but it's small
 
     // other inits
-    *model_acts_memory = NULL;
+    // *model_acts_memory = NULL;
     // model->grads_memory = NULL;
     // model->m_memory = NULL;
     // model->v_memory = NULL;
     // model->grads_acts_memory = NULL;
     // model->inputs = NULL;
     // model->targets = NULL;
-    model->batch_size = 0;
-    model->seq_len = 0;
+    // model->batch_size = 0;
+    // model->seq_len = 0;
     model->mean_loss = -1.0f; // -1.0f will designate no loss
 }
 
-void gpt2_forward(GPT2 *model, ParameterTensors *model_params, float *model_params_memory, ActivationTensors *model_acts, float **model_acts_memory, int *inputs, int *targets, size_t B, size_t T) {
-    #pragma HLS INTERFACE m_axi port=model offset=slave bundle=gmem
-    #pragma HLS INTERFACE m_axi port=inputs depth=256 offset=slave bundle=gmem
-    #pragma HLS INTERFACE m_axi port=targets offset=slave bundle=gmem
+void gpt2_forward(
+    GPT2 *model, 
 
+    float* wte, // (V, C)
+    float* wpe, // (maxT, C)
+    float* ln1w, // (L, C)
+    float* ln1b, // (L, C)
+    float* qkvw, // (L, 3*C, C)
+    float* qkvb, // (L, 3*C)
+    float* attprojw, // (L, C, C)
+    float* attprojb, // (L, C)
+    float* ln2w, // (L, C)
+    float* ln2b, // (L, C)
+    float* fcw, // (L, 4*C, C)
+    float* fcb, // (L, 4*C)
+    float* fcprojw, // (L, C, 4*C)
+    float* fcprojb, // (L, C)
+    float* lnfw, // (C)
+    float* lnfb, // (C)    
+    float* encoded, // (B, T, C)
+    float* ln1, // (L, B, T, C)
+    float* ln1_mean, // (L, B, T)
+    float* ln1_rstd, // (L, B, T)
+    float* qkv, // (L, B, T, 3*C)
+    float* atty, // (L, B, T, C)
+    float* preatt, // (L, B, NH, T, T)
+    float* att, // (L, B, NH, T, T)
+    float* attproj, // (L, B, T, C)
+    float* residual2, // (L, B, T, C)
+    float* ln2, // (L, B, T, C)
+    float* ln2_mean, // (L, B, T)
+    float* ln2_rstd, // (L, B, T)
+    float* fch, // (L, B, T, 4*C)
+    float* fch_gelu, // (L, B, T, 4*C)
+    float* fcproj, // (L, B, T, C)
+    float* residual3, // (L, B, T, C)
+    float* lnf, // (B, T, C)
+    float* lnf_mean, // (B, T)
+    float* lnf_rstd, // (B, T)
+    float* logits, // (B, T, V)
+    float* probs, // (B, T, V)
+    float* losses, // (B, T)
+    
+    int *inputs, 
+    int *targets, 
+    size_t B, 
+    size_t T) {
+    #pragma HLS INTERFACE m_axi port = model depth = 1 bundle = gmem
+
+    #pragma HLS INTERFACE m_axi port = wte depth = 38597376 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = wpe depth = 786432 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = ln1w depth = 9216 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = ln1b depth = 9216 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = qkvw depth = 21233664 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = qkvb depth = 27648 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = attprojw depth = 7077888 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = attprojb depth = 9216 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = ln2w depth = 9216 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = ln2b depth = 9216 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = fcw depth = 28311552 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = fcb depth = 36864 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = fcprojw depth = 28311552 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = fcprojb depth = 9216 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = lnfw depth = 768 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = lnfb depth = 768 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = encoded depth = 196608 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = ln1 depth = 2359296 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = ln1_mean depth = 3072 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = ln1_rstd depth = 3072 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = qkv depth = 7077888 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = atty depth = 2359296 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = preatt depth = 2359296 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = att depth = 2359296 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = attproj depth = 2359296 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = residual2 depth = 2359296 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = ln2 depth = 2359296 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = ln2_mean depth = 3072 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = ln2_rstd depth = 3072 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = fch depth = 9437184 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = fch_gelu depth = 9437184 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = fcproj depth = 2359296 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = residual3 depth = 2359296 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = lnf depth = 196608 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = lnf_mean depth = 256 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = lnf_rstd depth = 256 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = logits depth = 12865792 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = probs depth = 12865792 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = losses depth = 256 bundle = gmem
+
+    #pragma HLS INTERFACE m_axi port = inputs depth = 256 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = targets depth = 256 bundle = gmem
+ 
     #pragma HLS INTERFACE s_axilite port=B
     #pragma HLS INTERFACE s_axilite port=T
-    #pragma HLS INTERFACE s_axilite port=return
+    // #pragma HLS INTERFACE s_axilite port=return
 
     // targets are optional and could be NULL
-
-    // ensure the model was initialized or error out
-    if (model_params_memory == NULL) {
-        printf("Error: model was not initialized properly.\n");
-        exit(1);
-    }
 
     // convenience parameters (size_t to help prevent int overflow)
     size_t V = model->config.vocab_size;
@@ -484,41 +591,58 @@ void gpt2_forward(GPT2 *model, ParameterTensors *model_params, float *model_para
     size_t L = model->config.num_layers;
     size_t NH = model->config.num_heads;
     size_t C = model->config.channels;
+   
+    ParameterTensors model_params;
+    model_params.wte = wte; // (V, C)
+    model_params.wpe = wpe; // (maxT, C)
+    model_params.ln1w = ln1w; // (L, C)
+    model_params.ln1b = ln1b; // (L, C)
+    model_params.qkvw = qkvw; // (L, 3*C, C)
+    model_params.qkvb = qkvb; // (L, 3*C)
+    model_params.attprojw = attprojw; // (L, C, C)
+    model_params.attprojb = attprojb; // (L, C)
+    model_params.ln2w = ln2w; // (L, C)
+    model_params.ln2b = ln2b; // (L, C)
+    model_params.fcw = fcw; // (L, 4*C, C)
+    model_params.fcb = fcb; // (L, 4*C)
+    model_params.fcprojw = fcprojw; // (L, C, 4*C)
+    model_params.fcprojb = fcprojb; // (L, C)
+    model_params.lnfw = lnfw; // (C)
+    model_params.lnfb = lnfb; // (C)
+
+    ActivationTensors model_acts;
+    model_acts.encoded = encoded; // (B, T, C)
+    model_acts.ln1 = ln1; // (L, B, T, C)
+    model_acts.ln1_mean = ln1_mean; // (L, B, T)
+    model_acts.ln1_rstd = ln1_rstd; // (L, B, T)
+    model_acts.qkv = qkv; // (L, B, T, 3*C)
+    model_acts.atty = atty; // (L, B, T, C)
+    model_acts.preatt = preatt; // (L, B, NH, T, T)
+    model_acts.att = att; // (L, B, NH, T, T)
+    model_acts.attproj = attproj; // (L, B, T, C)
+    model_acts.residual2 = residual2; // (L, B, T, C)
+    model_acts.ln2 = ln2; // (L, B, T, C)
+    model_acts.ln2_mean = ln2_mean; // (L, B, T)
+    model_acts.ln2_rstd = ln2_rstd; // (L, B, T)
+    model_acts.fch = fch; // (L, B, T, 4*C)
+    model_acts.fch_gelu = fch_gelu; // (L, B, T, 4*C)
+    model_acts.fcproj = fcproj; // (L, B, T, C)
+    model_acts.residual3 = residual3; // (L, B, T, C)
+    model_acts.lnf = lnf; // (B, T, C)
+    model_acts.lnf_mean = lnf_mean; // (B, T)
+    model_acts.lnf_rstd = lnf_rstd; // (B, T)
+    model_acts.logits = logits; // (B, T, V)
+    model_acts.probs = probs; // (B, T, V)
+    model_acts.losses = losses; // (B, T)
 
     printf("validating inputs\n");
     // validate inputs, all indices must be in the range [0, V)
     for(int i = 0; i < B * T; i++) {
         printf("%d ", inputs[i]);
-        fflush(stdout);
+        // fflush(stdout);
         assert(0 <= inputs[i] && inputs[i] < V);
         if (targets != NULL) {
             assert(0 <= targets[i] && targets[i] < V);
-        }
-    }
-
-    // allocate space for all the activations if needed (done here, lazily)
-    if(*model_acts_memory == NULL) {
-        // record the current B,T as well
-        model->batch_size = B;
-        model->seq_len = T;
-        // and now allocate the space
-        fill_in_activation_sizes(model->act_sizes, model->config, B, T);
-        size_t num_activations = 0;
-        for (size_t i = 0; i < NUM_ACTIVATION_TENSORS; i++) {
-            num_activations += model->act_sizes[i];
-        }
-        printf("num_activations: %zu\n", num_activations);
-        model->num_activations = num_activations;
-        *model_acts_memory = malloc_and_point_activations(model_acts, model->act_sizes);
-        // also create memory for caching inputs and targets
-        // model->inputs = (int*)mallocCheck(B * T * sizeof(int));
-        // model->targets = (int*)mallocCheck(B * T * sizeof(int)); // might be unused if we never have targets but it's small
-    } else {
-        // validate B,T is consistent with how we've allocated the memory before
-        // in principle we could get more clever here in the future, for now this is safest
-        if (B != model->batch_size || T != model->seq_len) {
-            printf("Model: B=%d T=%d, Desired: B=%d T=%d\n", model->batch_size, model->seq_len, (int)B, (int)T);
-            exit(EXIT_FAILURE);
         }
     }
 
@@ -529,11 +653,12 @@ void gpt2_forward(GPT2 *model, ParameterTensors *model_params, float *model_para
     }
 
     // forward pass
-    ParameterTensors params = *model_params; // for brevity
-    ActivationTensors acts = *model_acts;
+    ParameterTensors params = model_params; // for brevity
+    ActivationTensors acts = model_acts;
     float* residual;
     encoder_forward(acts.encoded, inputs, params.wte, params.wpe, B, T, C); // encoding goes into residual[0]
     for (int l = 0; l < L; l++) {
+        printf("computing layer %d\n", l);
 
         residual = l == 0 ? acts.encoded : acts.residual3 + (l-1) * B * T * C;
 
@@ -570,34 +695,50 @@ void gpt2_forward(GPT2 *model, ParameterTensors *model_params, float *model_para
         float* l_residual3 = acts.residual3 + l * B * T * C;
 
         // now do the forward pass
+        printf("computing LN\n");
         layernorm_forward(l_ln1, l_ln1_mean, l_ln1_rstd, residual, l_ln1w, l_ln1b, B, T, C);
+        printf("computing matmul\n");
         matmul_forward(l_qkv, l_ln1, l_qkvw, l_qkvb, B, T, C, 3*C);
+        printf("computing attn\n");
         attention_forward(l_atty, l_preatt, l_att, l_qkv, B, T, C, NH);
+        printf("computing matmul\n");
         matmul_forward(l_attproj, l_atty, l_attprojw, l_attprojb, B, T, C, C);
+        printf("computing res\n");
         residual_forward(l_residual2, residual, l_attproj, B*T*C);
+        printf("computing LN\n");
         layernorm_forward(l_ln2, l_ln2_mean, l_ln2_rstd, l_residual2, l_ln2w, l_ln2b, B, T, C);
+        printf("computing matmul\n");
         matmul_forward(l_fch, l_ln2, l_fcw, l_fcb, B, T, C, 4*C);
+        printf("computing gelu\n");
         gelu_forward(l_fch_gelu, l_fch, B*T*4*C);
+        printf("computing matmul\n");
         matmul_forward(l_fcproj, l_fch_gelu, l_fcprojw, l_fcprojb, B, T, 4*C, C);
+        printf("computing res\n");
         residual_forward(l_residual3, l_residual2, l_fcproj, B*T*C);
     }
     residual = acts.residual3 + (L-1) * B * T * C; // last residual is in residual3
+    printf("computing LN\n");
     layernorm_forward(acts.lnf, acts.lnf_mean, acts.lnf_rstd, residual, params.lnfw, params.lnfb, B, T, C);
+    printf("computing matmul\n");
     matmul_forward(acts.logits, acts.lnf, params.wte, NULL, B, T, C, Vp);
+    printf("computing softmax\n");
     softmax_forward(acts.probs, acts.logits, B, T, V, Vp);
+    printf("softmax done\n");    
 
     // also forward the cross-entropy loss function if we have the targets
     if (targets != NULL) {
-        crossentropy_forward(model_acts->losses, model_acts->probs, targets, B, T, Vp);
+        printf("computing CE loss\n");
+        crossentropy_forward(model_acts.losses, model_acts.probs, targets, B, T, Vp);
         // for convenience also evaluate the mean loss
         float mean_loss = 0.0f;
-        for (int i=0; i<B*T; i++) { mean_loss += model_acts->losses[i]; }
+        for (int i=0; i<B*T; i++) { mean_loss += model_acts.losses[i]; }
         mean_loss /= B*T;
         model->mean_loss = mean_loss;
     } else {
         // if we don't have targets, we don't have a loss
         model->mean_loss = -1.0f;
     }
+    printf("all the computation are done\n");
 }
 
 void gpt2_free(float *model_params_memory, float *model_acts_memory) {
