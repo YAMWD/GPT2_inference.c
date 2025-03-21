@@ -339,7 +339,11 @@ float* malloc_and_point_parameters(ParameterTensors* params, size_t* param_sizes
     }
     // num_parameters = 124475904;
     // malloc all parameters all at once
-    float* params_memory = (float*)mallocCheck(num_parameters * sizeof(float));
+    // float* params_memory = (float*)mallocCheck(num_parameters * sizeof(float));
+    void *p;
+    posix_memalign(&p, 4096, num_parameters * sizeof(float));
+    float *params_memory = (float *)p;
+    //float* params_memory = (float*)aligned_alloc(num_parameters, num_parameters * sizeof(float));
     // assign all the tensors
     float** ptrs[] = {
         &params->wte, &params->wpe, &params->ln1w, &params->ln1b, &params->qkvw, &params->qkvb,
@@ -390,7 +394,10 @@ float* malloc_and_point_activations(ActivationTensors* acts, size_t* act_sizes) 
     for (size_t i = 0; i < NUM_ACTIVATION_TENSORS; i++) {
         num_activations += act_sizes[i];
     }
-    float* acts_memory = (float*)mallocCheck(num_activations * sizeof(float));
+    void *p;
+    posix_memalign(&p, 4096, num_activations * sizeof(float));
+    float *acts_memory = (float *)p;
+    //float* acts_memory = (float*)mallocCheck(num_activations * sizeof(float));
     float** ptrs[] = {
         &acts->encoded, &acts->ln1, &acts->ln1_mean, &acts->ln1_rstd, &acts->qkv, &acts->atty,
         &acts->preatt, &acts->att, &acts->attproj, &acts->residual2, &acts->ln2, &acts->ln2_mean,
@@ -527,50 +534,50 @@ void gpt2_forward(
     int *targets, 
     size_t B, 
     size_t T) {
-    #pragma HLS INTERFACE bram port=model
+    #pragma HLS INTERFACE m_axi port = model depth = 1 bundle = gmem
 
-    #pragma HLS INTERFACE m_axi port = wte depth = 38597376 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = wpe depth = 786432 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = ln1w depth = 9216 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = ln1b depth = 9216 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = qkvw depth = 21233664 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = qkvb depth = 27648 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = attprojw depth = 7077888 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = attprojb depth = 9216 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = ln2w depth = 9216 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = ln2b depth = 9216 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = fcw depth = 28311552 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = fcb depth = 36864 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = fcprojw depth = 28311552 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = fcprojb depth = 9216 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = lnfw depth = 768 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = lnfb depth = 768 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = encoded depth = 196608 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = ln1 depth = 2359296 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = ln1_mean depth = 3072 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = ln1_rstd depth = 3072 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = qkv depth = 7077888 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = atty depth = 2359296 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = preatt depth = 2359296 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = att depth = 2359296 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = attproj depth = 2359296 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = residual2 depth = 2359296 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = ln2 depth = 2359296 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = ln2_mean depth = 3072 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = ln2_rstd depth = 3072 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = fch depth = 9437184 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = fch_gelu depth = 9437184 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = fcproj depth = 2359296 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = residual3 depth = 2359296 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = lnf depth = 196608 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = lnf_mean depth = 256 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = lnf_rstd depth = 256 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = logits depth = 12865792 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = probs depth = 12865792 offset = slave bundle = gmem
-    #pragma HLS INTERFACE m_axi port = losses depth = 256 offset = slave bundle = gmem
+    #pragma HLS INTERFACE m_axi port = wte depth = 38597376 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = wpe depth = 786432 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = ln1w depth = 9216 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = ln1b depth = 9216 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = qkvw depth = 21233664 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = qkvb depth = 27648 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = attprojw depth = 7077888 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = attprojb depth = 9216 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = ln2w depth = 9216 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = ln2b depth = 9216 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = fcw depth = 28311552 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = fcb depth = 36864 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = fcprojw depth = 28311552 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = fcprojb depth = 9216 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = lnfw depth = 768 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = lnfb depth = 768 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = encoded depth = 196608 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = ln1 depth = 2359296 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = ln1_mean depth = 3072 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = ln1_rstd depth = 3072 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = qkv depth = 7077888 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = atty depth = 2359296 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = preatt depth = 2359296 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = att depth = 2359296 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = attproj depth = 2359296 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = residual2 depth = 2359296 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = ln2 depth = 2359296 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = ln2_mean depth = 3072 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = ln2_rstd depth = 3072 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = fch depth = 9437184 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = fch_gelu depth = 9437184 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = fcproj depth = 2359296 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = residual3 depth = 2359296 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = lnf depth = 196608 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = lnf_mean depth = 256 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = lnf_rstd depth = 256 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = logits depth = 12865792 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = probs depth = 12865792 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = losses depth = 256 bundle = gmem
 
-    #pragma HLS INTERFACE bram port = inputs depth = 256
-    #pragma HLS INTERFACE bram port = targets depth = 256
+    #pragma HLS INTERFACE m_axi port = inputs depth = 256 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = targets depth = 256 bundle = gmem
  
     #pragma HLS INTERFACE s_axilite port=B
     #pragma HLS INTERFACE s_axilite port=T
@@ -712,7 +719,6 @@ void gpt2_forward(
     residual = acts.residual3 + (L-1) * B * T * C; // last residual is in residual3
     printf("computing LN\n");
     layernorm_forward(acts.lnf, acts.lnf_mean, acts.lnf_rstd, residual, params.lnfw, params.lnfb, B, T, C);
-    /*
     printf("computing matmul\n");
     matmul_forward(acts.logits, acts.lnf, params.wte, NULL, B, T, C, Vp);
     printf("computing softmax\n");
@@ -732,7 +738,6 @@ void gpt2_forward(
         // if we don't have targets, we don't have a loss
         model->mean_loss = -1.0f;
     }
-    */
     printf("all the computation are done\n");
 }
 
