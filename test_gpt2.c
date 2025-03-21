@@ -142,6 +142,7 @@ int main(int argc, char *argv[]) {
 
         x, y, B, T);
 
+    /*
     matmul_forward(model_acts.logits, model_acts.lnf, model_params.wte, NULL, B, T, C, Vp);
     softmax_forward(model_acts.probs, model_acts.logits, B, T, V, Vp);
     printf("softmax done\n");
@@ -159,7 +160,8 @@ int main(int argc, char *argv[]) {
         // if we don't have targets, we don't have a loss
         model.mean_loss = -1.0f;
     }
-
+    */
+    
     printf("forward pass done\n");
     clock_gettime(CLOCK_MONOTONIC, &end);
     double time_elapsed_s = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
