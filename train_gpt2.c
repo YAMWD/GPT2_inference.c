@@ -47,6 +47,22 @@ void layernorm_forward(float* out, float* mean, float* rstd,
     // mean and rstd are (B,T) buffers, to be used later in backward pass
     // at each position (b,t) of the input, the C-dimensional vector
     // of activations gets normalized, then scaled and shifted
+
+    #ifdef TESTING_LN
+    printf("defined\n");
+    #pragma HLS INTERFACE m_axi port = out depth = 196608 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = mean depth = 256 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = rstd depth = 256 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = inp depth = 196608 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = weight depth = 768 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = bias depth = 768 bundle = gmem
+
+    #pragma HLS INTERFACE s_axilite port = B
+    #pragma HLS INTERFACE s_axilite port = T
+    #pragma HLS INTERFACE s_axilite port = C
+
+    #endif
+
     float eps = 1e-5f;
     for (int b = 0; b < B; b++) {
         for (int t = 0; t < T; t++) {
@@ -75,8 +91,8 @@ void layernorm_forward(float* out, float* mean, float* rstd,
                 out_bt[i] = o; // write
             }
             // cache the mean and rstd for the backward pass later
-            mean[b * T + t] = m;
-            rstd[b * T + t] = s;
+            // mean[b * T + t] = m;
+            // rstd[b * T + t] = s;
         }
     }
 }

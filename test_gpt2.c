@@ -1,4 +1,3 @@
-#define TESTING
 #include "train_gpt2.h"
 
 // poor man's tensor checker
