@@ -731,7 +731,7 @@ void gpt2_forward(
         crossentropy_forward(model_acts.losses, model_acts.probs, targets, B, T, Vp);
         // for convenience also evaluate the mean loss
         float mean_loss = 0.0f;
-        for (int i=0; i<B*(T-1); i++) { mean_loss += model->acts.losses[i]; }
+        for (int i=0; i<B*(T-1); i++) { mean_loss += model_acts.losses[i]; }
         mean_loss /= B*(T-1);
         model->mean_loss = mean_loss;
     } else {
