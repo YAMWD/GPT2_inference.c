@@ -21,6 +21,12 @@ void encoder_forward(float* out,
     // inp is (B,T) of integers, holding the token ids at each (b,t) position
     // wte is (V,C) of token embeddings, short for "weight token embeddings"
     // wpe is (maxT,C) of position embeddings, short for "weight positional embedding"
+
+    // explicitly state the value of loop vars so HLS can calculate latency 
+    B = 4;
+    T = 64;
+    C = 768;
+
     for (int b = 0; b < B; b++) {
         for (int t = 0; t < T; t++) {
             // seek to the output position in out[b,t,:]
@@ -49,7 +55,7 @@ void layernorm_forward(float* out, float* mean, float* rstd,
     // of activations gets normalized, then scaled and shifted
 
     #ifdef TESTING_LN
-    printf("defined\n");
+    printf("defined LN marco\n");
     #pragma HLS INTERFACE m_axi port = out depth = 196608 bundle = gmem
     #pragma HLS INTERFACE m_axi port = mean depth = 256 bundle = gmem
     #pragma HLS INTERFACE m_axi port = rstd depth = 256 bundle = gmem
@@ -62,6 +68,11 @@ void layernorm_forward(float* out, float* mean, float* rstd,
     #pragma HLS INTERFACE s_axilite port = C
 
     #endif
+
+    // explicitly state the value of loop vars so HLS can calculate latency 
+    B = 4;
+    T = 64;
+    C = 768;
 
     float eps = 1e-5f;
     for (int b = 0; b < B; b++) {
@@ -97,12 +108,125 @@ void layernorm_forward(float* out, float* mean, float* rstd,
     }
 }
 
+void attn_block_forward(float *out, float *c_attn_out, float *qkv_out, 
+                        float *inp, 
+                        float *qkvw, float *qkvb,
+                        float *preatt, float *att,
+                        float *attprojw, float *attprojb,
+                        int B, int T, int C, int NH)
+{
+    #ifdef TESTING_ATTN
+    printf("defined ATTN marco\n");
+
+    #pragma HLS INTERFACE m_axi port = out depth = 196608 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = c_attn_out depth = 196608 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = qkv_out depth = 589824 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = inp depth = 196608 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = qkvw depth = 1769472 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = qkvb depth = 2304 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = preatt depth = 196608 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = att depth = 196608 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = attprojw depth = 589824 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = attprojb depth = 768 bundle = gmem
+
+
+    #pragma HLS INTERFACE s_axilite port = B
+    #pragma HLS INTERFACE s_axilite port = T
+    #pragma HLS INTERFACE s_axilite port = C
+    #pragma HLS INTERFACE s_axilite port = NH
+
+    // explicitly state the value of loop vars so HLS can calculate latency 
+    B = 4;
+    T = 64;
+    C = 768;
+    NH = 12;
+
+    #endif
+
+    matmul_forward(
+        qkv_out, 
+        inp, 
+        qkvw, 
+        qkvb, 
+        B, T, C, 3 * C);
+
+    attention_forward(    
+        c_attn_out,   
+        preatt, // (B, NH, T, T)
+        att, // (B, NH, T, T)
+        qkv_out,
+        B, T, C, NH);
+
+    matmul_forward(
+        out, 
+        c_attn_out,
+        attprojw, 
+        attprojb, 
+        B, T, C, C);
+}
+
+void mlp_block_forward(float *c_proj_outputs, float *c_fc_gelu_outputs, float *c_fc_outputs, 
+                        float *inputs, 
+                        float *fcw, float *fcb,
+                        float *fcprojw, float *fcprojb,
+                        int B, int T, int C)
+{
+    #ifdef TESTING_MLP
+    printf("defined MLP marco\n");
+
+    #pragma HLS INTERFACE m_axi port = c_proj_outputs depth = 196608 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = c_fc_gelu_outputs depth = 786432 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = c_fc_outputs depth = 786432 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = inputs depth = 196608 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = fcw depth = 2359296 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = fcb depth = 3072 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = fcprojw depth = 2359296 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = fcprojb depth = 768 bundle = gmem
+
+
+    #pragma HLS INTERFACE s_axilite port = B
+    #pragma HLS INTERFACE s_axilite port = T
+    #pragma HLS INTERFACE s_axilite port = C
+
+    // explicitly state the value of loop vars so HLS can calculate latency 
+    B = 4;
+    T = 64;
+    C = 768;
+
+    #endif
+
+    matmul_forward(
+        c_fc_outputs,
+        inputs,
+        fcw,
+        fcb,
+        B, T, C, 4 * C);
+
+    gelu_forward(
+        c_fc_gelu_outputs,
+        c_fc_outputs,
+        B * T * 4 * C);
+
+    matmul_forward(
+        c_proj_outputs,
+        c_fc_gelu_outputs,
+        fcprojw,
+        fcprojb,
+        B, T, 4 * C, C);
+}
+
 void matmul_forward(float* out,
                          const float* inp, const float* weight, const float* bias,
                          int B, int T, int C, int OC) {
     // the most naive implementation of matrix multiplication
     // this serves as an algorithmic reference, and as a fallback for
     // unfriendly input shapes inside matmul_forward(), below.
+
+    // explicitly state the value of loop vars so HLS can calculate latency 
+    B = 4;
+    T = 64;
+    C = 768;
+    
     #pragma omp parallel for collapse(2)
     for (int b = 0; b < B; b++) {
         for (int t = 0; t < T; t++) {
@@ -607,7 +731,15 @@ void gpt2_forward(
     size_t L = model->config.num_layers;
     size_t NH = model->config.num_heads;
     size_t C = model->config.channels;
-   
+
+    B = 4;
+    T = 64;
+    C = 768;
+    L = 12;
+    NH = 12;
+    V = 50257
+    Vp = 50304;
+
     ParameterTensors model_params;
     model_params.wte = wte; // (V, C)
     model_params.wpe = wpe; // (maxT, C)
