@@ -225,7 +225,6 @@ void matmul_forward(float* out,
     // explicitly state the value of loop vars so HLS can calculate latency 
     B = 4;
     T = 64;
-    C = 768;
     
     #pragma omp parallel for collapse(2)
     for (int b = 0; b < B; b++) {
@@ -737,7 +736,7 @@ void gpt2_forward(
     C = 768;
     L = 12;
     NH = 12;
-    V = 50257
+    V = 50257;
     Vp = 50304;
 
     ParameterTensors model_params;
