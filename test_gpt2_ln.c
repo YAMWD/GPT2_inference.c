@@ -97,11 +97,11 @@ int main(int argc, char *argv[]) {
 
     layernorm_forward(    
         outputs,   
-        model_acts.ln1_mean, // (L, B, T)
-        model_acts.ln1_rstd, // (L, B, T)
+        model_acts.ln1_mean, // (B, T)
+        model_acts.ln1_rstd, // (B, T)
         inputs,
-        model_params.ln1w, // (L, C)
-        model_params.ln1b, // (L, C)
+        model_params.ln1w, // (C)
+        model_params.ln1b, // (C)
         B, T, C);
     
     printf("ln done\n");
