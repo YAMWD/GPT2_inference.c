@@ -23,9 +23,9 @@ void encoder_forward(float* out,
     // wpe is (maxT,C) of position embeddings, short for "weight positional embedding"
 
     // explicitly state the value of loop vars so HLS can calculate latency 
-    B = 4;
-    T = 64;
-    C = 768;
+    // B = 4;
+    // T = 64;
+    // C = 768;
 
     for (int b = 0; b < B; b++) {
         for (int t = 0; t < T; t++) {
@@ -70,9 +70,9 @@ void layernorm_forward(float* out, float* mean, float* rstd,
     #endif
 
     // explicitly state the value of loop vars so HLS can calculate latency 
-    B = 4;
-    T = 64;
-    C = 768;
+    // B = 4;
+    // T = 64;
+    // C = 768;
 
     float eps = 1e-5f;
     for (int b = 0; b < B; b++) {
@@ -223,8 +223,8 @@ void matmul_forward(float* out,
     // unfriendly input shapes inside matmul_forward(), below.
 
     // explicitly state the value of loop vars so HLS can calculate latency 
-    B = 4;
-    T = 64;
+    // B = 4;
+    // T = 64;
     
     #pragma omp parallel for collapse(2)
     for (int b = 0; b < B; b++) {
@@ -390,13 +390,13 @@ void residual_forward(float* out, float* inp1, float* inp2, int N) {
 }
 
 void softmax_forward(float* probs, float* logits, int B, int T, int V, int Vp) {
-    // output: probs are (B, T - 1, Vp) of the probabilities (sums to 1.0 in each b,t position)
-    // input: logits is (B, T - 1, Vp) of the unnormalized log probabilities
+    // output: probs are (B, T, Vp) of the probabilities (sums to 1.0 in each b,t position)
+    // input: logits is (B, T, Vp) of the unnormalized log probabilities
     // Vp is the padded vocab size (for efficiency), V is the "real" vocab size
     // example: Vp is 50304 and V is 50257
     // #pragma omp parallel for collapse(2)
     for (int b = 0; b < B; b++) {
-        for (int t = 0; t < T - 1; t++) {
+        for (int t = 0; t < T; t++) {
             printf("processing token %d in batch %d\n", t, b);
             // probs <- softmax(logits)
             float* logits_bt = logits + b * T * Vp + t * Vp;
@@ -434,15 +434,15 @@ void softmax_forward(float* probs, float* logits, int B, int T, int V, int Vp) {
 void crossentropy_forward(float* losses,
                           float* probs, int* targets,
                           int B, int T, int Vp) {
-    // output: losses is (B, T - 1) of the individual losses at each position
-    // input: probs are (B, T - 1, Vp) of the probabilities
-    // input: targets is (B, T - 1) of integers giving the correct index in logits
+    // output: losses is (B, T) of the individual losses at each position
+    // input: probs are (B, T, Vp) of the probabilities
+    // input: targets is (B, T) of integers giving the correct index in logits
     for (int b = 0; b < B; b++) {
-        for (int t = 0; t < T - 1; t++) {
+        for (int t = 0; t < T; t++) {
             // loss = -log(probs[target])
             float* probs_bt = probs + b * T * Vp + t * Vp;
-            int ix = targets[b * T + t + 1];
-            losses[b * (T - 1) + t] = -logf(probs_bt[ix]);
+            int ix = targets[b * T + t];
+            losses[b * T + t] = -logf(probs_bt[ix]);
         }
     }
 }
@@ -731,13 +731,13 @@ void gpt2_forward(
     size_t NH = model->config.num_heads;
     size_t C = model->config.channels;
 
-    B = 4;
-    T = 64;
-    C = 768;
-    L = 12;
-    NH = 12;
-    V = 50257;
-    Vp = 50304;
+    // B = 4;
+    // T = 64;
+    // C = 768;
+    // L = 12;
+    // NH = 12;
+    // V = 50257;
+    // Vp = 50304;
 
     ParameterTensors model_params;
     model_params.wte = wte; // (V, C)
@@ -878,8 +878,8 @@ void gpt2_forward(
         crossentropy_forward(model_acts.losses, model_acts.probs, targets, B, T, Vp);
         // for convenience also evaluate the mean loss
         float mean_loss = 0.0f;
-        for (int i=0; i<B*(T-1); i++) { mean_loss += model_acts.losses[i]; }
-        mean_loss /= B*(T-1);
+        for (int i=0; i<B*T; i++) { mean_loss += model_acts.losses[i]; }
+        mean_loss /= B*T;
         model->mean_loss = mean_loss;
     } else {
         // if we don't have targets, we don't have a loss
