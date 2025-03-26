@@ -187,15 +187,21 @@ int main(int argc, char *argv[]) {
             }
         }
     }
-    if(!logits_ok) { printf("NOT "); }
+
+    assert(logits_ok == 1);
+
     printf("OK (LOGITS), max_diff = %e\n", max_diff);
 
     // compare the achieved loss
+    int loss_ok = 1;
     if (fabsf(model.mean_loss - *expected_loss) >= 1e-2) {
+        loss_ok = 0;
         printf("LOSS MISMATCH: %f %f\n", model.mean_loss, *expected_loss);
     } else {
         printf("LOSS OK: %f %f\n", model.mean_loss, *expected_loss);
     }
+
+    assert(loss_ok == 1);
 
     // free everything
     free(x);
@@ -203,5 +209,6 @@ int main(int argc, char *argv[]) {
     free(expected_logits);
     free(expected_loss);
     gpt2_free(model_params_memory, model_acts_memory);
+
     return 0;
 }
