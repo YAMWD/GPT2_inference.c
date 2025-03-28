@@ -669,7 +669,7 @@ int main(int argc, char** argv) {
 
     std::cout << "Read the output data\n";
     buffer_model.read(&model);
-    buffer_logits.read( model_acts.logits);
+    buffer_logits.read(model_acts.logits);
 
     // error checking at step 0 for reference activations/gradients
     // at this point, target should be equal to expected_logits, let's compare
@@ -703,6 +703,74 @@ int main(int argc, char** argv) {
         printf("LOSS OK: %f %f\n", model.mean_loss, *expected_loss);
     }
     
+
+    // build the DataLoaders from tokens files. for now use tiny_shakespeare if available, else tiny_stories
+    const char* tiny_stories_train = "dev/data/tinystories/TinyStories_train.bin";
+    const char* tiny_stories_val = "dev/data/tinystories/TinyStories_val.bin";
+    const char* tiny_shakespeare_train = "dev/data/tinyshakespeare/tiny_shakespeare_train.bin";
+    const char* tiny_shakespeare_val = "dev/data/tinyshakespeare/tiny_shakespeare_val.bin";
+    const char* train_tokens = access(tiny_shakespeare_train, F_OK) != -1 ? tiny_shakespeare_train : tiny_stories_train;
+    const char* val_tokens = access(tiny_shakespeare_val, F_OK) != -1 ? tiny_shakespeare_val : tiny_stories_val;
+    
+    DataLoader train_loader, val_loader;
+    dataloader_init(&train_loader, train_tokens, B, T, 0, 1, 1);
+    // dataloader_init(&val_loader, val_tokens, B, T, 0, 1, 0);
+    printf("train dataset num_batches: %zu\n", train_loader.num_tokens / (B*T));
+    // printf("val dataset num_batches: %zu\n", val_loader.num_tokens / (B*T));
+    int train_num_batches = 127;
+    // int val_num_batches = 5;
+
+    // build the Tokenizer
+    Tokenizer tokenizer;
+    tokenizer_init(&tokenizer, "gpt2_tokenizer.bin");
+
+    // some memory for generating samples from the model
+    uint64_t rng_state = 1337;
+    int* gen_tokens = (int*)mallocCheck(B * T * sizeof(int));
+    const int genT = 64; // number of steps of inference we will do
+
+    // inference
+    float loss = 0.0f;
+    for (int i = 0; i < train_num_batches; i++) 
+    {
+        printf("############\n");
+        printf("batch %d\n", i);
+        printf("############\n");
+
+        dataloader_next_batch(&train_loader);
+
+        buffer_inputs.write(train_loader.inputs);
+        buffer_inputs.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+        buffer_targets.write(train_loader.targets);
+        buffer_targets.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+        run.set_arg(40, buffer_inputs);
+        run.set_arg(41, buffer_targets);
+
+        clock_gettime(CLOCK_MONOTONIC, &start);
+
+        run.start();
+        run.wait();
+
+        clock_gettime(CLOCK_MONOTONIC, &end);
+        
+        time_elapsed_s = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
+
+        std::cout << "Kernel execution completed successfully!\n Time elapsed in s: " << time_elapsed_s << std::endl;
+
+        std::cout << "Synchronize the output buffer data from the device" << std::endl;
+        buffer_model.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
+
+        std::cout << "Read the output data\n";
+        buffer_model.read(&model);
+
+        loss += model.mean_loss;
+    }
+
+    loss /= train_num_batches;
+
+    printf("inference loss %f\n", loss);
+
     free(x);
     free(y);
     free(expected_logits);
