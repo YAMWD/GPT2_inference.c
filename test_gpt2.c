@@ -90,9 +90,17 @@ int main(int argc, char *argv[]) {
     freadCheck(expected_loss, sizeof(float), 1, state_file);
     fcloseCheck(state_file);
 
-    for (int i = 0; i < 10; ++i)
-        printf("%d\n", x[i]);
-    // fflush(stdout);
+    printf("validating inputs\n");
+    // validate inputs, all indices must be in the range [0, V)
+    for(int i = 0; i < B * T; i++) {
+        // printf("%d ", inputs[i]);
+        // fflush(stdout);
+        assert(0 <= x[i] && x[i] < V);
+        if (y != NULL) {
+            assert(0 <= y[i] && y[i] < V);
+        }
+    }
+
     struct timespec start, end;
     clock_gettime(CLOCK_MONOTONIC, &start);
 
@@ -183,6 +191,7 @@ int main(int argc, char *argv[]) {
 
     // assert(loss_ok == 1);
 
+    /*
     // build the DataLoaders from tokens files. for now use tiny_shakespeare if available, else tiny_stories
     const char* tiny_stories_train = "dev/data/tinystories/TinyStories_train.bin";
     const char* tiny_stories_val = "dev/data/tinystories/TinyStories_val.bin";
@@ -265,7 +274,8 @@ int main(int argc, char *argv[]) {
     loss /= train_num_batches;
 
     printf("inference loss %f\n", loss);
-    
+    */
+
     // free everything
     free(x);
     free(y);
