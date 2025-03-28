@@ -148,7 +148,7 @@ int main(int argc, char *argv[]) {
         model_acts.losses, // (B, T)
 
         x, y, B, T);
-    
+
     printf("forward pass done\n");
     clock_gettime(CLOCK_MONOTONIC, &end);
     double time_elapsed_s = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
