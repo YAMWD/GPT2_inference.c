@@ -191,7 +191,7 @@ int main(int argc, char *argv[]) {
 
     // assert(loss_ok == 1);
 
-    /*
+    #ifndef HLS_CSIM
     // build the DataLoaders from tokens files. for now use tiny_shakespeare if available, else tiny_stories
     const char* tiny_stories_train = "dev/data/tinystories/TinyStories_train.bin";
     const char* tiny_stories_val = "dev/data/tinystories/TinyStories_val.bin";
@@ -202,11 +202,11 @@ int main(int argc, char *argv[]) {
     
     DataLoader train_loader, val_loader;
     dataloader_init(&train_loader, train_tokens, B, T, 0, 1, 1);
-    // dataloader_init(&val_loader, val_tokens, B, T, 0, 1, 0);
+    dataloader_init(&val_loader, val_tokens, B, T, 0, 1, 0);
     printf("train dataset num_batches: %zu\n", train_loader.num_tokens / (B*T));
-    // printf("val dataset num_batches: %zu\n", val_loader.num_tokens / (B*T));
-    int train_num_batches = 127;
-    // int val_num_batches = 5;
+    printf("val dataset num_batches: %zu\n", val_loader.num_tokens / (B*T));
+    int train_num_batches = train_loader.num_tokens / (B*T);
+    int val_num_batches = val_loader.num_tokens / (B*T);
 
     // build the Tokenizer
     Tokenizer tokenizer;
@@ -219,9 +219,13 @@ int main(int argc, char *argv[]) {
 
     // inference
     float loss = 0.0f;
-    for (int i = 0; i < train_num_batches; i++) 
+    for (int i = 0; i < val_num_batches; i++) 
     {
-        dataloader_next_batch(&train_loader);
+        printf("############\n");
+        printf("batch %d\n", i);
+        printf("############\n");
+
+        dataloader_next_batch(&val_loader);
 
         gpt2_forward(
         &model, 
@@ -266,15 +270,17 @@ int main(int argc, char *argv[]) {
         model_acts.probs, // (B, T, V)
         model_acts.losses, // (B, T)
 
-        train_loader.inputs, train_loader.targets, B, T);
+        val_loader.inputs, val_loader.targets, B, T);
+
+        printf("loss: %f\n\n", model.mean_loss);
 
         loss += model.mean_loss;
     }
 
-    loss /= train_num_batches;
+    loss /= val_num_batches;
 
-    printf("inference loss %f\n", loss);
-    */
+    printf("val loss %f\n", loss);
+    #endif
 
     // free everything
     free(x);
