@@ -68,11 +68,6 @@ void layernorm_forward(float* out, float* mean, float* rstd,
 
     #endif
 
-    // explicitly state the value of loop vars so HLS can calculate latency 
-    // B = 4;
-    // T = 64;
-    // C = 768;
-
     float eps = 1e-5f;
     for (int b = 0; b < B; b++) {
     #pragma HLS loop_tripcount min=4 max=4 avg=4
@@ -139,12 +134,6 @@ void attn_block_forward(float *out, float *c_attn_out, float *qkv_out,
     #pragma HLS INTERFACE s_axilite port = C
     #pragma HLS INTERFACE s_axilite port = NH
 
-    // explicitly state the value of loop vars so HLS can calculate latency 
-    B = 4;
-    T = 64;
-    C = 768;
-    NH = 12;
-
     #endif
 
     matmul_forward(
@@ -192,11 +181,6 @@ void mlp_block_forward(float *c_proj_outputs, float *c_fc_gelu_outputs, float *c
     #pragma HLS INTERFACE s_axilite port = T
     #pragma HLS INTERFACE s_axilite port = C
 
-    // explicitly state the value of loop vars so HLS can calculate latency 
-    B = 4;
-    T = 64;
-    C = 768;
-
     #endif
 
     matmul_forward(
@@ -225,10 +209,6 @@ void matmul_forward(float* out,
     // the most naive implementation of matrix multiplication
     // this serves as an algorithmic reference, and as a fallback for
     // unfriendly input shapes inside matmul_forward(), below.
-
-    // explicitly state the value of loop vars so HLS can calculate latency 
-    // B = 4;
-    // T = 64;
     
     #pragma omp parallel for collapse(2)
     for (int b = 0; b < B; b++) {
@@ -326,11 +306,13 @@ void attention_forward(float* out, float* preatt, float* att,
                 // pass 1: calculate query dot key and maxval
                 float maxval = -10000.0f; // TODO something better
                 for (int t2 = 0; t2 <= t; t2++) {
+                #pragma HLS loop_tripcount min=1 max=64
                     float* key_t2 = inp + b * T * C3 + t2 * C3 + h * hs + C; // +C because it's key
 
                     // (query_t) dot (key_t2)
                     float val = 0.0f;
                     for (int i = 0; i < hs; i++) {
+                    #pragma HLS loop_tripcount min=64 max=64 avg=64
                         val += query_t[i] * key_t2[i];
                     }
                     val *= scale;
@@ -345,6 +327,7 @@ void attention_forward(float* out, float* preatt, float* att,
                 // maxval is being calculated and subtracted only for numerical stability
                 float expsum = 0.0f;
                 for (int t2 = 0; t2 <= t; t2++) {
+                #pragma HLS loop_tripcount min=1 max=64
                     float expv = expf(preatt_bth[t2] - maxval);
                     expsum += expv;
                     att_bth[t2] = expv;
@@ -365,11 +348,16 @@ void attention_forward(float* out, float* preatt, float* att,
 
                 // pass 4: accumulate weighted values into the output of attention
                 float* out_bth = out + b * T * C + t * C + h * hs;
-                for (int i = 0; i < hs; i++) { out_bth[i] = 0.0f; }
+                for (int i = 0; i < hs; i++) {
+                #pragma HLS loop_tripcount min=64 max=64 avg=64
+                    out_bth[i] = 0.0f;
+                }
                 for (int t2 = 0; t2 <= t; t2++) {
+                #pragma HLS loop_tripcount min=1 max=64
                     float* value_t2 = inp + b * T * C3 + t2 * C3 + h * hs + C*2; // +C*2 because it's value
                     float att_btht2 = att_bth[t2];
                     for (int i = 0; i < hs; i++) {
+                    #pragma HLS loop_tripcount min=64 max=64 avg=64
                         out_bth[i] += att_btht2 * value_t2[i];
                     }
                 }
@@ -382,6 +370,7 @@ void attention_forward(float* out, float* preatt, float* att,
 void gelu_forward(float* out, float* inp, int N) {
     // (approximate) GeLU elementwise non-linearity in the MLP block of Transformer
     for (int i = 0; i < N; i++) {
+    #pragma HLS loop_tripcount min=3072 max=3072 avg=3072
         float x = inp[i];
         float cube = 0.044715f * x * x * x;
         out[i] = 0.5f * x * (1.0f + tanhf(GELU_SCALING_FACTOR * (x + cube)));
@@ -397,6 +386,7 @@ __attribute__((optimize("no-finite-math-only")))
 
 void residual_forward(float* out, float* inp1, float* inp2, int N) {
     for (int i = 0; i < N; i++) {
+    #pragma HLS loop_tripcount min=196608 max=196608 avg=196608
         out[i] = inp1[i] + inp2[i];
     }
 }
@@ -441,7 +431,7 @@ void softmax_forward(float* probs, float* logits, int B, int T, int V, int Vp) {
             // for extra super safety we may wish to include this too,
             // forcing the probabilities here to be zero, but it shouldn't matter
             for (int i = V; i < Vp; i++) {
-            #pragma HLS loop_tripcount min=50304 max=50304 avg=50304
+            #pragma HLS loop_tripcount min=47 max=47 avg=47
                 probs_bt[i] = 0.0f;
             }
             printf("forced padded probs to be zero\n");
@@ -793,24 +783,7 @@ void gpt2_forward(
     model_acts.logits = logits; // (B, T, V)
     model_acts.probs = probs; // (B, T, V)
     model_acts.losses = losses; // (B, T)
-
-    printf("validating inputs\n");
-    // validate inputs, all indices must be in the range [0, V)
-    for(int i = 0; i < B * T; i++) {
-        printf("%d ", inputs[i]);
-        // fflush(stdout);
-        assert(0 <= inputs[i] && inputs[i] < V);
-        if (targets != NULL) {
-            assert(0 <= targets[i] && targets[i] < V);
-        }
-    }
-
-    // cache the inputs/targets
-    memcpy(model->inputs, inputs, B * T * sizeof(int));
-    if (targets != NULL) {
-        memcpy(model->targets, targets, B * T * sizeof(int));
-    }
-
+    
     // forward pass
     ParameterTensors params = model_params; // for brevity
     ActivationTensors acts = model_acts;
@@ -891,7 +864,10 @@ void gpt2_forward(
         crossentropy_forward(model_acts.losses, model_acts.probs, targets, B, T, Vp);
         // for convenience also evaluate the mean loss
         float mean_loss = 0.0f;
-        for (int i=0; i<B*T; i++) { mean_loss += model_acts.losses[i]; }
+        for (int i=0; i<B*T; i++) { 
+        #pragma HLS loop_tripcount min=256 max=256 avg=256
+            mean_loss += model_acts.losses[i]; 
+        }
         mean_loss /= B*T;
         model->mean_loss = mean_loss;
     } else {
