@@ -401,7 +401,7 @@ void softmax_forward(float* probs, float* logits, int B, int T, int V, int Vp) {
     #pragma HLS loop_tripcount min=4 max=4 avg=4
         for (int t = 0; t < T; t++) {
         #pragma HLS loop_tripcount min=64 max=64 avg=64
-            printf("processing token %d in batch %d\n", t, b);
+            // printf("processing token %d in batch %d\n", t, b);
             // probs <- softmax(logits)
             float* logits_bt = logits + b * T * Vp + t * Vp;
             float* probs_bt = probs + b * T * Vp + t * Vp;
@@ -414,27 +414,27 @@ void softmax_forward(float* probs, float* logits, int B, int T, int V, int Vp) {
                     maxval = logits_bt[i];
                 }
             }
-            printf("maxVal calculated\n");
+            // printf("maxVal calculated\n");
             float sum = 0.0f;
             for (int i = 0; i < V; i++) {
             #pragma HLS loop_tripcount min=50257 max=50257 avg=50257
                 probs_bt[i] = expf(logits_bt[i] - maxval);
                 sum += probs_bt[i];
             }
-            printf("prob calculated\n");
+            // printf("prob calculated\n");
             // note we only loop to V, leaving the padded dimensions
             for (int i = 0; i < V; i++) {
             #pragma HLS loop_tripcount min=50257 max=50257 avg=50257
                 probs_bt[i] /= sum;
             }
-            printf("prob normed\n");
+            // printf("prob normed\n");
             // for extra super safety we may wish to include this too,
             // forcing the probabilities here to be zero, but it shouldn't matter
             for (int i = V; i < Vp; i++) {
             #pragma HLS loop_tripcount min=47 max=47 avg=47
                 probs_bt[i] = 0.0f;
             }
-            printf("forced padded probs to be zero\n");
+            // printf("forced padded probs to be zero\n");
         }
     }
 }
@@ -791,7 +791,7 @@ void gpt2_forward(
     encoder_forward(acts.encoded, inputs, params.wte, params.wpe, B, T, C); // encoding goes into residual[0]
     for (int l = 0; l < L; l++) {
     #pragma HLS loop_tripcount min=12 max=12 avg=12
-        printf("computing layer %d\n", l);
+        // printf("computing layer %d\n", l);
 
         residual = l == 0 ? acts.encoded : acts.residual3 + (l-1) * B * T * C;
 
@@ -828,39 +828,39 @@ void gpt2_forward(
         float* l_residual3 = acts.residual3 + l * B * T * C;
 
         // now do the forward pass
-        printf("computing LN\n");
+        // printf("computing LN\n");
         layernorm_forward(l_ln1, l_ln1_mean, l_ln1_rstd, residual, l_ln1w, l_ln1b, B, T, C);
-        printf("computing matmul\n");
+        // printf("computing matmul\n");
         matmul_forward(l_qkv, l_ln1, l_qkvw, l_qkvb, B, T, C, 3*C);
-        printf("computing attn\n");
+        // printf("computing attn\n");
         attention_forward(l_atty, l_preatt, l_att, l_qkv, B, T, C, NH);
-        printf("computing matmul\n");
+        // printf("computing matmul\n");
         matmul_forward(l_attproj, l_atty, l_attprojw, l_attprojb, B, T, C, C);
-        printf("computing res\n");
+        // printf("computing res\n");
         residual_forward(l_residual2, residual, l_attproj, B*T*C);
-        printf("computing LN\n");
+        // printf("computing LN\n");
         layernorm_forward(l_ln2, l_ln2_mean, l_ln2_rstd, l_residual2, l_ln2w, l_ln2b, B, T, C);
-        printf("computing matmul\n");
+        // printf("computing matmul\n");
         matmul_forward(l_fch, l_ln2, l_fcw, l_fcb, B, T, C, 4*C);
-        printf("computing gelu\n");
+        // printf("computing gelu\n");
         gelu_forward(l_fch_gelu, l_fch, B*T*4*C);
-        printf("computing matmul\n");
+        // printf("computing matmul\n");
         matmul_forward(l_fcproj, l_fch_gelu, l_fcprojw, l_fcprojb, B, T, 4*C, C);
-        printf("computing res\n");
+        // printf("computing res\n");
         residual_forward(l_residual3, l_residual2, l_fcproj, B*T*C);
     }
     residual = acts.residual3 + (L-1) * B * T * C; // last residual is in residual3
-    printf("computing LN\n");
+    // printf("computing LN\n");
     layernorm_forward(acts.lnf, acts.lnf_mean, acts.lnf_rstd, residual, params.lnfw, params.lnfb, B, T, C);
-    printf("computing matmul\n");
+    // printf("computing matmul\n");
     matmul_forward(acts.logits, acts.lnf, params.wte, NULL, B, T, C, Vp);
-    printf("computing softmax\n");
+    // printf("computing softmax\n");
     softmax_forward(acts.probs, acts.logits, B, T, V, Vp);
-    printf("softmax done\n");    
+    // printf("softmax done\n");    
 
     // also forward the cross-entropy loss function if we have the targets
     if (targets != NULL) {
-        printf("computing CE loss\n");
+        // printf("computing CE loss\n");
         crossentropy_forward(model_acts.losses, model_acts.probs, targets, B, T, Vp);
         // for convenience also evaluate the mean loss
         float mean_loss = 0.0f;
@@ -874,7 +874,7 @@ void gpt2_forward(
         // if we don't have targets, we don't have a loss
         model->mean_loss = -1.0f;
     }
-    printf("all the computation are done\n");
+    // printf("all the computation are done\n");
 }
 
 void gpt2_free(float *model_params_memory, float *model_acts_memory) {
