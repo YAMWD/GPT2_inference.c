@@ -5,7 +5,7 @@ add_files ./llmc/dataloader.c
 add_files ./llmc/rand.c
 add_files ./llmc/tokenizer.c
 add_files ./llmc/utils.c
-add_files train_gpt2.c
+add_files train_gpt2.c -cflags "-D HLS_CSIM" 
 
 add_files -tb test_gpt2.c
 
