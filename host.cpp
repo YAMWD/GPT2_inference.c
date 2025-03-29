@@ -469,7 +469,6 @@ int main(int argc, char** argv) {
     /********************************************
     * Allocate buffers on device and prepare data
     **********************************************/
-    printf("%p\n%p\n%p\n%p\n%p\n", &model, model_params.wte, model_params.wpe, model_params.ln1w, model_params.ln1b);
 
     // 4. Create device buffer (aligned to 4096 bytes for best performance)
     xrt::bo buffer_model(device, 604 * 4, XRT_BO_FLAGS_NONE, kernel.group_id(0));
@@ -703,7 +702,6 @@ int main(int argc, char** argv) {
         printf("LOSS OK: %f %f\n", model.mean_loss, *expected_loss);
     }
     
-
     // build the DataLoaders from tokens files. for now use tiny_shakespeare if available, else tiny_stories
     const char* tiny_stories_train = "dev/data/tinystories/TinyStories_train.bin";
     const char* tiny_stories_val = "dev/data/tinystories/TinyStories_val.bin";
@@ -714,11 +712,11 @@ int main(int argc, char** argv) {
     
     DataLoader train_loader, val_loader;
     dataloader_init(&train_loader, train_tokens, B, T, 0, 1, 1);
-    // dataloader_init(&val_loader, val_tokens, B, T, 0, 1, 0);
+    dataloader_init(&val_loader, val_tokens, B, T, 0, 1, 0);
     printf("train dataset num_batches: %zu\n", train_loader.num_tokens / (B*T));
-    // printf("val dataset num_batches: %zu\n", val_loader.num_tokens / (B*T));
-    int train_num_batches = 127;
-    // int val_num_batches = 5;
+    printf("val dataset num_batches: %zu\n", val_loader.num_tokens / (B*T));
+    int train_num_batches = train_loader.num_tokens / (B*T);
+    int val_num_batches = val_loader.num_tokens / (B*T);
 
     // build the Tokenizer
     Tokenizer tokenizer;
@@ -731,17 +729,17 @@ int main(int argc, char** argv) {
 
     // inference
     float loss = 0.0f;
-    for (int i = 0; i < train_num_batches; i++) 
+    for (int i = 0; i < val_num_batches; i++) 
     {
         printf("############\n");
         printf("batch %d\n", i);
         printf("############\n");
 
-        dataloader_next_batch(&train_loader);
+        dataloader_next_batch(&val_loader);
 
-        buffer_inputs.write(train_loader.inputs);
+        buffer_inputs.write(val_loader.inputs);
         buffer_inputs.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-        buffer_targets.write(train_loader.targets);
+        buffer_targets.write(val_loader.targets);
         buffer_targets.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
         run.set_arg(40, buffer_inputs);
@@ -765,11 +763,13 @@ int main(int argc, char** argv) {
         buffer_model.read(&model);
 
         loss += model.mean_loss;
+
+        printf("loss: %f\n\n", model.mean_loss);
     }
 
-    loss /= train_num_batches;
+    loss /= val_num_batches;
 
-    printf("inference loss %f\n", loss);
+    printf("val loss %f\n", loss);
 
     free(x);
     free(y);
