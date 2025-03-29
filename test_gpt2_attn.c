@@ -11,6 +11,13 @@ int check_tensor(float *a, float *b, int n, const char* label) {
         // look at the diffence at position i of these two tensors
         float diff = fabsf(a[i] - b[i]);
 
+        if (diff > tol)
+        {
+            printf("%d\n", i);
+            printf("%f %f\n", a[i], b[i]);
+            break;
+        }
+
         // keep track of the overall error
         ok = ok && (diff <= tol);
         if (diff > maxdiff) { maxdiff = diff; }
@@ -42,8 +49,6 @@ int main(int argc, char *argv[]) {
     float *model_params_memory = NULL, *model_acts_memory;
     ParameterTensors model_params;
     ActivationTensors model_acts;
-
-    printf("Size of struct: %lu bytes\n", sizeof(model));
 
     // load additional information that we will use for debugging and error checking
     FILE *state_file = fopen("gpt2_124M_debug_state.bin", "rb");
@@ -77,43 +82,50 @@ int main(int argc, char *argv[]) {
     int Vp = model.config.padded_vocab_size;
     int maxT = model.config.max_seq_len;
     int L = model.config.num_layers;
+    int NH = model.config.num_heads;
 
     // inputs and expected outputs, only used for error checking
     float *inputs = (float*) malloc(B * T * C * sizeof(float));
-    float *outputs = (float*) malloc(B * T * C * sizeof(float));
+    float *qkv_outputs = (float*) malloc(B * T * 3 * C * sizeof(float));
+    float *c_attn_outputs = (float*) malloc(B * T * C * sizeof(float));
+    float *c_proj_outputs = (float*) malloc(B * T * C * sizeof(float));
     float *expected_outputs = (float*) malloc(B * T * C * sizeof(float));
 
-    FILE *ln_state_file = fopen("gpt2_124M_block_0_ln_0_debug_state.bin", "rb");
+    FILE *attn_state_file = fopen("gpt2_124M_block_0_attn_debug_state.bin", "rb");
     // read reference information from Python
-    freadCheck(inputs, sizeof(float), B * T * C, ln_state_file);
-    freadCheck(expected_outputs, sizeof(float), B * T * C, ln_state_file);
-    fcloseCheck(ln_state_file);
+    freadCheck(inputs, sizeof(float), B * T * C, attn_state_file);
+    freadCheck(expected_outputs, sizeof(float), B * T * C, attn_state_file);
+    fcloseCheck(attn_state_file);
 
     for (int i = 0; i < 10; ++i)
         printf("%f\n", inputs[i]);
     // fflush(stdout);
     struct timespec start, end;
     clock_gettime(CLOCK_MONOTONIC, &start);
-
-    layernorm_forward(    
-        outputs,   
-        model_acts.ln1_mean, // (B, T)
-        model_acts.ln1_rstd, // (B, T)
-        inputs,
-        model_params.ln1w, // (C)
-        model_params.ln1b, // (C)
-        B, T, C);
     
-    printf("ln done\n");
+    attn_block_forward(
+        c_proj_outputs, c_attn_outputs, qkv_outputs,
+        inputs,
+        model_params.qkvw, 
+        model_params.qkvb, 
+        model_acts.preatt, // (B, NH, T, T)
+        model_acts.att, // (B, NH, T, T)
+        model_params.attprojw, 
+        model_params.attprojb, 
+        B, T, C, NH);
+
+    printf("attn done\n");
     clock_gettime(CLOCK_MONOTONIC, &end);
     double time_elapsed_s = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
     printf("time eplased: %lf\n", time_elapsed_s);
 
-    check_tensor(outputs, expected_outputs, B * T * C, "ln_out");
+    check_tensor(c_proj_outputs, expected_outputs, B * T * C, "attn_out");
 
     // free everything
     free(inputs);
-    free(outputs);
+    free(qkv_outputs);
+    free(c_attn_outputs);
+    free(c_proj_outputs);
     free(expected_outputs);
     gpt2_free(model_params_memory, model_acts_memory);
 

@@ -21,8 +21,12 @@ void encoder_forward(float* out,
     // inp is (B,T) of integers, holding the token ids at each (b,t) position
     // wte is (V,C) of token embeddings, short for "weight token embeddings"
     // wpe is (maxT,C) of position embeddings, short for "weight positional embedding"
+
+    // explicitly state the value of loop vars so HLS can calculate latency 
     for (int b = 0; b < B; b++) {
+    #pragma HLS loop_tripcount min=4 max=4 avg=4
         for (int t = 0; t < T; t++) {
+        #pragma HLS loop_tripcount min=64 max=64 avg=64
             // seek to the output position in out[b,t,:]
             float* out_bt = out + b * T * C + t * C;
             // get the index of the token at inp[b, t]
@@ -33,6 +37,7 @@ void encoder_forward(float* out,
             float* wpe_t = wpe + t * C;
             // add the two vectors and store the result in out[b,t,:]
             for (int i = 0; i < C; i++) {
+            #pragma HLS loop_tripcount min=768 max=768 avg=768
                 out_bt[i] = wte_ix[i] + wpe_t[i];
             }
         }
@@ -49,7 +54,7 @@ void layernorm_forward(float* out, float* mean, float* rstd,
     // of activations gets normalized, then scaled and shifted
 
     #ifdef TESTING_LN
-    printf("defined\n");
+    printf("defined LN marco\n");
     #pragma HLS INTERFACE m_axi port = out depth = 196608 bundle = gmem
     #pragma HLS INTERFACE m_axi port = mean depth = 256 bundle = gmem
     #pragma HLS INTERFACE m_axi port = rstd depth = 256 bundle = gmem
@@ -65,18 +70,22 @@ void layernorm_forward(float* out, float* mean, float* rstd,
 
     float eps = 1e-5f;
     for (int b = 0; b < B; b++) {
+    #pragma HLS loop_tripcount min=4 max=4 avg=4
         for (int t = 0; t < T; t++) {
+        #pragma HLS loop_tripcount min=64 max=64 avg=64
             // seek to the input position inp[b,t,:]
             float* x = inp + b * T * C + t * C;
             // calculate the mean
             float m = 0.0f;
             for (int i = 0; i < C; i++) {
+            #pragma HLS loop_tripcount min=768 max=768 avg=768
                 m += x[i];
             }
             m = m/C;
             // calculate the variance (without any bias correction)
             float v = 0.0f;
             for (int i = 0; i < C; i++) {
+            #pragma HLS loop_tripcount min=768 max=768 avg=768
                 float xshift = x[i] - m;
                 v += xshift * xshift;
             }
@@ -86,6 +95,7 @@ void layernorm_forward(float* out, float* mean, float* rstd,
             // seek to the output position in out[b,t,:]
             float* out_bt = out + b * T * C + t * C;
             for (int i = 0; i < C; i++) {
+            #pragma HLS loop_tripcount min=768 max=768 avg=768
                 float n = (s * (x[i] - m)); // normalize
                 float o = n * weight[i] + bias[i]; // scale and shift
                 out_bt[i] = o; // write
@@ -97,19 +107,120 @@ void layernorm_forward(float* out, float* mean, float* rstd,
     }
 }
 
+void attn_block_forward(float *out, float *c_attn_out, float *qkv_out, 
+                        float *inp, 
+                        float *qkvw, float *qkvb,
+                        float *preatt, float *att,
+                        float *attprojw, float *attprojb,
+                        int B, int T, int C, int NH)
+{
+    #ifdef TESTING_ATTN
+    printf("defined ATTN marco\n");
+
+    #pragma HLS INTERFACE m_axi port = out depth = 196608 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = c_attn_out depth = 196608 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = qkv_out depth = 589824 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = inp depth = 196608 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = qkvw depth = 1769472 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = qkvb depth = 2304 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = preatt depth = 196608 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = att depth = 196608 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = attprojw depth = 589824 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = attprojb depth = 768 bundle = gmem
+
+
+    #pragma HLS INTERFACE s_axilite port = B
+    #pragma HLS INTERFACE s_axilite port = T
+    #pragma HLS INTERFACE s_axilite port = C
+    #pragma HLS INTERFACE s_axilite port = NH
+
+    #endif
+
+    matmul_forward(
+        qkv_out, 
+        inp, 
+        qkvw, 
+        qkvb, 
+        B, T, C, 3 * C);
+
+    attention_forward(    
+        c_attn_out,   
+        preatt, // (B, NH, T, T)
+        att, // (B, NH, T, T)
+        qkv_out,
+        B, T, C, NH);
+
+    matmul_forward(
+        out, 
+        c_attn_out,
+        attprojw, 
+        attprojb, 
+        B, T, C, C);
+}
+
+void mlp_block_forward(float *c_proj_outputs, float *c_fc_gelu_outputs, float *c_fc_outputs, 
+                        float *inputs, 
+                        float *fcw, float *fcb,
+                        float *fcprojw, float *fcprojb,
+                        int B, int T, int C)
+{
+    #ifdef TESTING_MLP
+    printf("defined MLP marco\n");
+
+    #pragma HLS INTERFACE m_axi port = c_proj_outputs depth = 196608 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = c_fc_gelu_outputs depth = 786432 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = c_fc_outputs depth = 786432 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = inputs depth = 196608 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = fcw depth = 2359296 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = fcb depth = 3072 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = fcprojw depth = 2359296 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = fcprojb depth = 768 bundle = gmem
+
+
+    #pragma HLS INTERFACE s_axilite port = B
+    #pragma HLS INTERFACE s_axilite port = T
+    #pragma HLS INTERFACE s_axilite port = C
+
+    #endif
+
+    matmul_forward(
+        c_fc_outputs,
+        inputs,
+        fcw,
+        fcb,
+        B, T, C, 4 * C);
+
+    gelu_forward(
+        c_fc_gelu_outputs,
+        c_fc_outputs,
+        B * T * 4 * C);
+
+    matmul_forward(
+        c_proj_outputs,
+        c_fc_gelu_outputs,
+        fcprojw,
+        fcprojb,
+        B, T, 4 * C, C);
+}
+
 void matmul_forward(float* out,
                          const float* inp, const float* weight, const float* bias,
                          int B, int T, int C, int OC) {
     // the most naive implementation of matrix multiplication
     // this serves as an algorithmic reference, and as a fallback for
     // unfriendly input shapes inside matmul_forward(), below.
+    
     #pragma omp parallel for collapse(2)
     for (int b = 0; b < B; b++) {
+    #pragma HLS loop_tripcount min=4 max=4 avg=4
         for (int t = 0; t < T; t++) {
+        #pragma HLS loop_tripcount min=64 max=64 avg=64
             int bt = b * T + t;
             for (int o = 0; o < OC; o++) {
+            #pragma HLS loop_tripcount min=768 max=50304
                 float val = (bias != NULL) ? bias[o] : 0.0f;
                 for (int i = 0; i < C; i++) {
+                #pragma HLS loop_tripcount min=768 max=3072
                     val += inp[bt * C + i] * weight[o*C + i];
                 }
                 out[bt * OC + o] = val;
@@ -183,8 +294,11 @@ void attention_forward(float* out, float* preatt, float* att,
 
     #pragma omp parallel for collapse(3)
     for (int b = 0; b < B; b++) {
+    #pragma HLS loop_tripcount min=4 max=4 avg=4
         for (int t = 0; t < T; t++) {
+        #pragma HLS loop_tripcount min=64 max=64 avg=64
             for (int h = 0; h < NH; h++) {
+            #pragma HLS loop_tripcount min=12 max=12 avg=12
                 float* query_t = inp + b * T * C3 + t * C3 + h * hs;
                 float* preatt_bth = preatt + b*NH*T*T + h*T*T + t*T;
                 float* att_bth = att + b*NH*T*T + h*T*T + t*T;
@@ -192,11 +306,13 @@ void attention_forward(float* out, float* preatt, float* att,
                 // pass 1: calculate query dot key and maxval
                 float maxval = -10000.0f; // TODO something better
                 for (int t2 = 0; t2 <= t; t2++) {
+                #pragma HLS loop_tripcount min=1 max=64
                     float* key_t2 = inp + b * T * C3 + t2 * C3 + h * hs + C; // +C because it's key
 
                     // (query_t) dot (key_t2)
                     float val = 0.0f;
                     for (int i = 0; i < hs; i++) {
+                    #pragma HLS loop_tripcount min=64 max=64 avg=64
                         val += query_t[i] * key_t2[i];
                     }
                     val *= scale;
@@ -211,6 +327,7 @@ void attention_forward(float* out, float* preatt, float* att,
                 // maxval is being calculated and subtracted only for numerical stability
                 float expsum = 0.0f;
                 for (int t2 = 0; t2 <= t; t2++) {
+                #pragma HLS loop_tripcount min=1 max=64
                     float expv = expf(preatt_bth[t2] - maxval);
                     expsum += expv;
                     att_bth[t2] = expv;
@@ -219,6 +336,7 @@ void attention_forward(float* out, float* preatt, float* att,
 
                 // pass 3: normalize to get the softmax
                 for (int t2 = 0; t2 < T; t2++) {
+                #pragma HLS loop_tripcount min=64 max=64 avg=64
                     if (t2 <= t) {
                         att_bth[t2] *= expsum_inv;
                     } else {
@@ -230,11 +348,16 @@ void attention_forward(float* out, float* preatt, float* att,
 
                 // pass 4: accumulate weighted values into the output of attention
                 float* out_bth = out + b * T * C + t * C + h * hs;
-                for (int i = 0; i < hs; i++) { out_bth[i] = 0.0f; }
+                for (int i = 0; i < hs; i++) {
+                #pragma HLS loop_tripcount min=64 max=64 avg=64
+                    out_bth[i] = 0.0f;
+                }
                 for (int t2 = 0; t2 <= t; t2++) {
+                #pragma HLS loop_tripcount min=1 max=64
                     float* value_t2 = inp + b * T * C3 + t2 * C3 + h * hs + C*2; // +C*2 because it's value
                     float att_btht2 = att_bth[t2];
                     for (int i = 0; i < hs; i++) {
+                    #pragma HLS loop_tripcount min=64 max=64 avg=64
                         out_bth[i] += att_btht2 * value_t2[i];
                     }
                 }
@@ -247,6 +370,7 @@ void attention_forward(float* out, float* preatt, float* att,
 void gelu_forward(float* out, float* inp, int N) {
     // (approximate) GeLU elementwise non-linearity in the MLP block of Transformer
     for (int i = 0; i < N; i++) {
+    #pragma HLS loop_tripcount min=3072 max=3072 avg=3072
         float x = inp[i];
         float cube = 0.044715f * x * x * x;
         out[i] = 0.5f * x * (1.0f + tanhf(GELU_SCALING_FACTOR * (x + cube)));
@@ -262,19 +386,22 @@ __attribute__((optimize("no-finite-math-only")))
 
 void residual_forward(float* out, float* inp1, float* inp2, int N) {
     for (int i = 0; i < N; i++) {
+    #pragma HLS loop_tripcount min=196608 max=196608 avg=196608
         out[i] = inp1[i] + inp2[i];
     }
 }
 
 void softmax_forward(float* probs, float* logits, int B, int T, int V, int Vp) {
-    // output: probs are (B, T - 1, Vp) of the probabilities (sums to 1.0 in each b,t position)
-    // input: logits is (B, T - 1, Vp) of the unnormalized log probabilities
+    // output: probs are (B, T, Vp) of the probabilities (sums to 1.0 in each b,t position)
+    // input: logits is (B, T, Vp) of the unnormalized log probabilities
     // Vp is the padded vocab size (for efficiency), V is the "real" vocab size
     // example: Vp is 50304 and V is 50257
     // #pragma omp parallel for collapse(2)
     for (int b = 0; b < B; b++) {
-        for (int t = 0; t < T - 1; t++) {
-            printf("processing token %d in batch %d\n", t, b);
+    #pragma HLS loop_tripcount min=4 max=4 avg=4
+        for (int t = 0; t < T; t++) {
+        #pragma HLS loop_tripcount min=64 max=64 avg=64
+            // printf("processing token %d in batch %d\n", t, b);
             // probs <- softmax(logits)
             float* logits_bt = logits + b * T * Vp + t * Vp;
             float* probs_bt = probs + b * T * Vp + t * Vp;
@@ -282,28 +409,32 @@ void softmax_forward(float* probs, float* logits, int B, int T, int V, int Vp) {
             // maxval is only calculated and subtracted for numerical stability
             float maxval = -10000.0f; // TODO something better
             for (int i = 0; i < V; i++) {
+            #pragma HLS loop_tripcount min=50257 max=50257 avg=50257
                 if (logits_bt[i] > maxval) {
                     maxval = logits_bt[i];
                 }
             }
-            printf("maxVal calculated\n");
+            // printf("maxVal calculated\n");
             float sum = 0.0f;
             for (int i = 0; i < V; i++) {
+            #pragma HLS loop_tripcount min=50257 max=50257 avg=50257
                 probs_bt[i] = expf(logits_bt[i] - maxval);
                 sum += probs_bt[i];
             }
-            printf("prob calculated\n");
+            // printf("prob calculated\n");
             // note we only loop to V, leaving the padded dimensions
             for (int i = 0; i < V; i++) {
+            #pragma HLS loop_tripcount min=50257 max=50257 avg=50257
                 probs_bt[i] /= sum;
             }
-            printf("prob normed\n");
+            // printf("prob normed\n");
             // for extra super safety we may wish to include this too,
             // forcing the probabilities here to be zero, but it shouldn't matter
             for (int i = V; i < Vp; i++) {
+            #pragma HLS loop_tripcount min=47 max=47 avg=47
                 probs_bt[i] = 0.0f;
             }
-            printf("forced padded probs to be zero\n");
+            // printf("forced padded probs to be zero\n");
         }
     }
 }
@@ -311,15 +442,17 @@ void softmax_forward(float* probs, float* logits, int B, int T, int V, int Vp) {
 void crossentropy_forward(float* losses,
                           float* probs, int* targets,
                           int B, int T, int Vp) {
-    // output: losses is (B, T - 1) of the individual losses at each position
-    // input: probs are (B, T - 1, Vp) of the probabilities
-    // input: targets is (B, T - 1) of integers giving the correct index in logits
+    // output: losses is (B, T) of the individual losses at each position
+    // input: probs are (B, T, Vp) of the probabilities
+    // input: targets is (B, T) of integers giving the correct index in logits
     for (int b = 0; b < B; b++) {
-        for (int t = 0; t < T - 1; t++) {
+    #pragma HLS loop_tripcount min=4 max=4 avg=4
+        for (int t = 0; t < T; t++) {
+        #pragma HLS loop_tripcount min=64 max=64 avg=64
             // loss = -log(probs[target])
             float* probs_bt = probs + b * T * Vp + t * Vp;
-            int ix = targets[b * T + t + 1];
-            losses[b * (T - 1) + t] = -logf(probs_bt[ix]);
+            int ix = targets[b * T + t];
+            losses[b * T + t] = -logf(probs_bt[ix]);
         }
     }
 }
@@ -607,7 +740,7 @@ void gpt2_forward(
     size_t L = model->config.num_layers;
     size_t NH = model->config.num_heads;
     size_t C = model->config.channels;
-   
+
     ParameterTensors model_params;
     model_params.wte = wte; // (V, C)
     model_params.wpe = wpe; // (maxT, C)
@@ -650,31 +783,15 @@ void gpt2_forward(
     model_acts.logits = logits; // (B, T, V)
     model_acts.probs = probs; // (B, T, V)
     model_acts.losses = losses; // (B, T)
-
-    printf("validating inputs\n");
-    // validate inputs, all indices must be in the range [0, V)
-    for(int i = 0; i < B * T; i++) {
-        printf("%d ", inputs[i]);
-        // fflush(stdout);
-        assert(0 <= inputs[i] && inputs[i] < V);
-        if (targets != NULL) {
-            assert(0 <= targets[i] && targets[i] < V);
-        }
-    }
-
-    // cache the inputs/targets
-    memcpy(model->inputs, inputs, B * T * sizeof(int));
-    if (targets != NULL) {
-        memcpy(model->targets, targets, B * T * sizeof(int));
-    }
-
+    
     // forward pass
     ParameterTensors params = model_params; // for brevity
     ActivationTensors acts = model_acts;
     float* residual;
     encoder_forward(acts.encoded, inputs, params.wte, params.wpe, B, T, C); // encoding goes into residual[0]
     for (int l = 0; l < L; l++) {
-        printf("computing layer %d\n", l);
+    #pragma HLS loop_tripcount min=12 max=12 avg=12
+        // printf("computing layer %d\n", l);
 
         residual = l == 0 ? acts.encoded : acts.residual3 + (l-1) * B * T * C;
 
@@ -711,50 +828,53 @@ void gpt2_forward(
         float* l_residual3 = acts.residual3 + l * B * T * C;
 
         // now do the forward pass
-        printf("computing LN\n");
+        // printf("computing LN\n");
         layernorm_forward(l_ln1, l_ln1_mean, l_ln1_rstd, residual, l_ln1w, l_ln1b, B, T, C);
-        printf("computing matmul\n");
+        // printf("computing matmul\n");
         matmul_forward(l_qkv, l_ln1, l_qkvw, l_qkvb, B, T, C, 3*C);
-        printf("computing attn\n");
+        // printf("computing attn\n");
         attention_forward(l_atty, l_preatt, l_att, l_qkv, B, T, C, NH);
-        printf("computing matmul\n");
+        // printf("computing matmul\n");
         matmul_forward(l_attproj, l_atty, l_attprojw, l_attprojb, B, T, C, C);
-        printf("computing res\n");
+        // printf("computing res\n");
         residual_forward(l_residual2, residual, l_attproj, B*T*C);
-        printf("computing LN\n");
+        // printf("computing LN\n");
         layernorm_forward(l_ln2, l_ln2_mean, l_ln2_rstd, l_residual2, l_ln2w, l_ln2b, B, T, C);
-        printf("computing matmul\n");
+        // printf("computing matmul\n");
         matmul_forward(l_fch, l_ln2, l_fcw, l_fcb, B, T, C, 4*C);
-        printf("computing gelu\n");
+        // printf("computing gelu\n");
         gelu_forward(l_fch_gelu, l_fch, B*T*4*C);
-        printf("computing matmul\n");
+        // printf("computing matmul\n");
         matmul_forward(l_fcproj, l_fch_gelu, l_fcprojw, l_fcprojb, B, T, 4*C, C);
-        printf("computing res\n");
+        // printf("computing res\n");
         residual_forward(l_residual3, l_residual2, l_fcproj, B*T*C);
     }
     residual = acts.residual3 + (L-1) * B * T * C; // last residual is in residual3
-    printf("computing LN\n");
+    // printf("computing LN\n");
     layernorm_forward(acts.lnf, acts.lnf_mean, acts.lnf_rstd, residual, params.lnfw, params.lnfb, B, T, C);
-    printf("computing matmul\n");
+    // printf("computing matmul\n");
     matmul_forward(acts.logits, acts.lnf, params.wte, NULL, B, T, C, Vp);
-    printf("computing softmax\n");
+    // printf("computing softmax\n");
     softmax_forward(acts.probs, acts.logits, B, T, V, Vp);
-    printf("softmax done\n");    
+    // printf("softmax done\n");    
 
     // also forward the cross-entropy loss function if we have the targets
     if (targets != NULL) {
-        printf("computing CE loss\n");
+        // printf("computing CE loss\n");
         crossentropy_forward(model_acts.losses, model_acts.probs, targets, B, T, Vp);
         // for convenience also evaluate the mean loss
         float mean_loss = 0.0f;
-        for (int i=0; i<B*(T-1); i++) { mean_loss += model_acts.losses[i]; }
-        mean_loss /= B*(T-1);
+        for (int i=0; i<B*T; i++) { 
+        #pragma HLS loop_tripcount min=256 max=256 avg=256
+            mean_loss += model_acts.losses[i]; 
+        }
+        mean_loss /= B*T;
         model->mean_loss = mean_loss;
     } else {
         // if we don't have targets, we don't have a loss
         model->mean_loss = -1.0f;
     }
-    printf("all the computation are done\n");
+    // printf("all the computation are done\n");
 }
 
 void gpt2_free(float *model_params_memory, float *model_acts_memory) {

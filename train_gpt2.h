@@ -121,6 +121,19 @@ void layernorm_forward(float* out, float* mean, float* rstd,
                        float* inp, float* weight, float* bias,
                        int B, int T, int C);
 
+void attn_block_forward(float *out, float *c_attn_out, float *qkv_out, 
+                        float *inp, 
+                        float *qkvw, float *qkvb,
+                        float *preatt, float *att,
+                        float *attprojw, float *attprojb,
+                        int B, int T, int C, int NH);
+
+void mlp_block_forward(float *c_proj_outputs, float *c_fc_gelu_outputs, float *c_fc_outputs, 
+                        float *inputs, 
+                        float *fcw, float *fcb,
+                        float *fcprojw, float *fcprojb,
+                        int B, int T, int C);
+
 void matmul_forward(float* out,
                          const float* inp, const float* weight, const float* bias,
                          int B, int T, int C, int OC);

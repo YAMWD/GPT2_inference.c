@@ -80,14 +80,16 @@ int main(int argc, char *argv[]) {
 
     // inputs and expected outputs, only used for error checking
     float *inputs = (float*) malloc(B * T * C * sizeof(float));
-    float *outputs = (float*) malloc(B * T * C * sizeof(float));
+    float *c_fc_outputs = (float*) malloc(B * T * 4 * C * sizeof(float));
+    float *c_fc_gelu_outputs = (float*) malloc(B * T * 4 * C * sizeof(float));
+    float *c_proj_outputs = (float*) malloc(B * T * C * sizeof(float));
     float *expected_outputs = (float*) malloc(B * T * C * sizeof(float));
 
-    FILE *ln_state_file = fopen("gpt2_124M_block_0_ln_0_debug_state.bin", "rb");
+    FILE *mlp_state_file = fopen("gpt2_124M_block_0_mlp_debug_state.bin", "rb");
     // read reference information from Python
-    freadCheck(inputs, sizeof(float), B * T * C, ln_state_file);
-    freadCheck(expected_outputs, sizeof(float), B * T * C, ln_state_file);
-    fcloseCheck(ln_state_file);
+    freadCheck(inputs, sizeof(float), B * T * C, mlp_state_file);
+    freadCheck(expected_outputs, sizeof(float), B * T * C, mlp_state_file);
+    fcloseCheck(mlp_state_file);
 
     for (int i = 0; i < 10; ++i)
         printf("%f\n", inputs[i]);
@@ -95,25 +97,27 @@ int main(int argc, char *argv[]) {
     struct timespec start, end;
     clock_gettime(CLOCK_MONOTONIC, &start);
 
-    layernorm_forward(    
-        outputs,   
-        model_acts.ln1_mean, // (B, T)
-        model_acts.ln1_rstd, // (B, T)
+    mlp_block_forward(
+        c_proj_outputs, c_fc_gelu_outputs, c_fc_outputs,
         inputs,
-        model_params.ln1w, // (C)
-        model_params.ln1b, // (C)
+        model_params.fcw,
+        model_params.fcb,
+        model_params.fcprojw,
+        model_params.fcprojb,
         B, T, C);
     
-    printf("ln done\n");
+    printf("mlp done\n");
     clock_gettime(CLOCK_MONOTONIC, &end);
     double time_elapsed_s = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
     printf("time eplased: %lf\n", time_elapsed_s);
 
-    check_tensor(outputs, expected_outputs, B * T * C, "ln_out");
+    check_tensor(c_proj_outputs, expected_outputs, B * T * C, "mlp_out");
 
     // free everything
     free(inputs);
-    free(outputs);
+    free(c_fc_outputs);
+    free(c_fc_gelu_outputs);
+    free(c_proj_outputs);
     free(expected_outputs);
     gpt2_free(model_params_memory, model_acts_memory);
 
