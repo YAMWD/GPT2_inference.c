@@ -1,0 +1,39 @@
+#ifndef SC_H
+#define SC_H
+
+#include <ap_fixed.h>
+#include <ap_int.h>
+
+#define N 8192 // Length of the stochastic bitstream
+
+// Normalize a float to [0,1) given a known min and max range.
+float normalize_clip(float x, float max_val);
+
+// Denormalize
+float denormalize(float x, float max_val);
+
+// Convert a normalized float (assumed in [0,1)) to fixed-point in Q0.24.
+ap_uint<24> float_to_fixed24(float x_norm);
+
+// 24-bit LFSR for pseudo-random number generation.
+ap_uint<24> lfsr24(ap_uint<24> state);
+
+// Generate a stochastic bitstream from a fixed-point threshold using a given seed.
+void gen_SN(ap_uint<24> fixed_val, ap_uint<1> stream[N], ap_uint<24> seed);
+
+// Multiply two stochastic bitstreams (element-wise AND).
+void SC_Mul(ap_uint<1> stream1[N], ap_uint<1> stream2[N], ap_uint<1> out_stream[N]);
+
+// Convert a stochastic bitstream back to a float by averaging the bits.
+float SN_to_float(ap_uint<1> stream[N]);
+
+// Top-level function to perform stochastic multiplication of two floats.
+// The inputs a and b are normalized using [min_val, max_val] and then converted into
+// a stochastic bitstream. Their multiplication is performed via bitwise AND, and the
+// result is averaged back into a float.
+void SC_mult(
+    float a, float b, float *result, float max_val, 
+    ap_uint<24> seed1, ap_uint<24> seed2
+);
+
+#endif // SC_H
