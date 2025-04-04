@@ -45,9 +45,7 @@ void gen_SN(ap_uint<24> fixed_val, ap_uint<1> stream[N], ap_uint<24> seed)
     for (int i = 0; i < N; i++) {
     #pragma HLS pipeline II=1
         state = lfsr24(state);
-        //std::cout << state << ' ' << fixed_val << std::endl;
         stream[i] = (state < fixed_val) ? 1 : 0;
-        // std::cout << stream[i] << std::endl;
     }
 }
 
@@ -82,7 +80,6 @@ void SC_mult(
     #pragma HLS INTERFACE s_axilite port=a      bundle=CTRL
     #pragma HLS INTERFACE s_axilite port=b      bundle=CTRL
     #pragma HLS INTERFACE s_axilite port=result bundle=CTRL
-    #pragma HLS INTERFACE s_axilite port=min_val bundle=CTRL
     #pragma HLS INTERFACE s_axilite port=max_val bundle=CTRL
     #pragma HLS INTERFACE s_axilite port=seed1   bundle=CTRL
     #pragma HLS INTERFACE s_axilite port=seed2   bundle=CTRL
@@ -98,7 +95,6 @@ void SC_mult(
     ap_uint<24> fixed_a = float_to_fixed24(a_norm);
     ap_uint<24> fixed_b = float_to_fixed24(b_norm);
 
-    std::cout << fixed_a << ' ' << fixed_b << std::endl;
     // Generate stochastic bitstreams for both operands.
     ap_uint<1> stream_a[N], stream_b[N], stream_out[N];
     gen_SN(fixed_a, stream_a, seed1);

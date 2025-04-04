@@ -22,7 +22,7 @@ set_part xcu280-fsvh2892-2LV-e ;# Set the target FPGA part (modify as needed)
 csim_design
 
 # Run High-Level Synthesis (HLS)                                                                                            nnn 
-# csynth_design
+csynth_design
 
 # Run co-simulation
 # cosim_design

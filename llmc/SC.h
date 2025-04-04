@@ -4,7 +4,7 @@
 #include <ap_fixed.h>
 #include <ap_int.h>
 
-#define N 8192 // Length of the stochastic bitstream
+#define N 1024 // Length of the stochastic bitstream
 
 // Normalize a float to [0,1) given a known min and max range.
 float normalize_clip(float x, float max_val);

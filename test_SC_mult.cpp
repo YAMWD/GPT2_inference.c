@@ -21,7 +21,9 @@ int main() {
     SC_mult(a, b, &result, max_abs_val, seed1, seed2);
 
     // Print the result. Note: Due to the stochastic nature, the result is an approximation.
+    printf("binary multiplication result for %f * %f = %f\n", a, b, a * b);
     printf("Stochastic multiplication result for %f * %f = %f\n", a, b, result);
+    printf("MAE: %f\n", abs(a * b - result));
 
     return 0;
 }
