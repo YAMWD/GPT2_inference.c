@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <math.h>
 
+ap_uint<24> g_lfsr_state = 0xACE1;
+
 // Normalize x to the [0,1) range using provided min and max values.
 float normalize_clip(float x, float max_val) 
 {
@@ -29,11 +31,12 @@ ap_uint<24> float_to_fixed24(float x_norm)
 }
 
 // A simple 24-bit LFSR; adjust feedback taps as needed.
-ap_uint<24> lfsr24(ap_uint<24> state) 
+ap_uint<24> next_lfsr24() 
 {
     #pragma HLS inline
-    bool new_bit = state[23] ^ state[22] ^ state[20] ^ state[19];
-    return (state << 1) | new_bit;
+    bool new_bit = g_lfsr_state[23] ^ g_lfsr_state[22] ^ g_lfsr_state[20] ^ g_lfsr_state[19];
+    g_lfsr_state = (g_lfsr_state << 1) | new_bit;
+    return g_lfsr_state; 
 }
 
 // Generate a stochastic bitstream from the fixed-point threshold.
@@ -49,17 +52,15 @@ ap_uint<24> lfsr24(ap_uint<24> state)
 //     }
 // }
 
-ap_uint<SN_LEN> gen_SN(float p, ap_uint<24> seed) {
+ap_uint<SN_LEN> gen_SN(float p) {
     ap_uint<SN_LEN> bitstream = 0;
-    ap_uint<24> state = seed;
     ap_uint<24> threshold = float_to_fixed24(p);
 
     // Fill each bit of the packed stream
     for (int i = 0; i < SN_LEN; i++) {
     #pragma HLS pipeline II=1
     #pragma HLS unroll factor=8
-        state = lfsr24(state);
-        bitstream[i] = (state < threshold) ? 1 : 0;
+        bitstream[i] = (next_lfsr24() < threshold) ? 1 : 0;
     }
 
     return bitstream;
@@ -90,13 +91,11 @@ float SN_to_float(ap_uint<SN_LEN> stream)
 // Top-level function for stochastic multiplication.
 // This function normalizes the inputs, converts them to fixed-point, generates the corresponding
 // stochastic bitstreams, performs a bitwise AND for multiplication, and then converts the result back to float.
-float SC_mult(float a, float b, float max_val, ap_uint<24> seed1, ap_uint<24> seed2) 
+float SC_mult(float a, float b, float max_val) 
 {
     #pragma HLS INTERFACE s_axilite port=a      bundle=CTRL
     #pragma HLS INTERFACE s_axilite port=b      bundle=CTRL
     #pragma HLS INTERFACE s_axilite port=max_val bundle=CTRL
-    #pragma HLS INTERFACE s_axilite port=seed1   bundle=CTRL
-    #pragma HLS INTERFACE s_axilite port=seed2   bundle=CTRL
     #pragma HLS INTERFACE s_axilite port=return  bundle=CTRL
 
     // Normalize inputs to [0,1) based on the expected range.
@@ -106,8 +105,8 @@ float SC_mult(float a, float b, float max_val, ap_uint<24> seed1, ap_uint<24> se
     // printf("normed a b: %f %f\n", normed_a, normed_b);
 
     // Generate stochastic bitstreams for both operands.
-    ap_uint<SN_LEN> stream_a = gen_SN(normed_a, seed1);
-    ap_uint<SN_LEN> stream_b = gen_SN(normed_b, seed2);
+    ap_uint<SN_LEN> stream_a = gen_SN(normed_a);
+    ap_uint<SN_LEN> stream_b = gen_SN(normed_b);
 
     // bipolar SC mult is done by an XNOR gate
     ap_uint<SN_LEN> stream_out = ~(stream_a ^ stream_b);

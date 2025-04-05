@@ -6,7 +6,7 @@
 
 #define SN_LEN 1024 // Length of the stochastic bitstream
 
-extern ap_uint<24> g_lfsr_state = 0xACE1;
+extern ap_uint<24> g_lfsr_state;
 
 // Normalize a float to [0,1) given a known min and max range.
 float normalize_clip(float x, float max_val);
@@ -18,10 +18,10 @@ float denormalize(float x, float max_val);
 ap_uint<24> float_to_fixed24(float x_norm);
 
 // 24-bit LFSR for pseudo-random number generation.
-ap_uint<24> lfsr24(ap_uint<24> state);
+ap_uint<24> next_lfsr24();
 
 // Generate a stochastic bitstream from a fixed-point threshold using a given seed.
-ap_uint<SN_LEN> gen_SN(ap_uint<SN_LEN> stream, ap_uint<24> seed);
+ap_uint<SN_LEN> gen_SN(ap_uint<SN_LEN> stream);
 
 // Multiply two stochastic bitstreams (element-wise AND).
 // void SC_Mul(ap_uint<1> stream1[SN_LEN], ap_uint<1> stream2[SN_LEN], ap_uint<1> out_stream[SN_LEN]);
@@ -33,7 +33,6 @@ float SN_to_float(ap_uint<SN_LEN> stream);
 // The inputs a and b are normalized using [min_val, max_val] and then converted into
 // a stochastic bitstream. Their multiplication is performed via bitwise AND, and the
 // result is averaged back into a float.
-float SC_mult(float a, float b, float max_val, ap_uint<24> seed1, ap_uint<24> seed2
-);
+float SC_mult(float a, float b, float max_val);
 
 #endif // SC_H

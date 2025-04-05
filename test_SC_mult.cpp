@@ -11,14 +11,10 @@ int main() {
     // For example, if we expect x ∈ [-10, 10]:
     float max_abs_val = 2.7956f;
 
-    // Set initial seed values for the LFSR used in stochastic bitstream generation.
-    ap_uint<24> seed1 = 0xACE1;  // Example seed value for input 'a'
-    ap_uint<24> seed2 = 0xBEEF;  // Example seed value for input 'b'
-
     // Call the top-level function for stochastic multiplication.
     // It normalizes the inputs, converts them to fixed point, generates stochastic bitstreams,
     // performs bitwise AND (multiplication), and converts the result back to a float.
-    result = SC_mult(a, b, max_abs_val, seed1, seed2);
+    result = SC_mult(a, b, max_abs_val);
 
     // Print the result. Note: Due to the stochastic nature, the result is an approximation.
     printf("binary multiplication result for %f * %f = %f\n", a, b, a * b);
