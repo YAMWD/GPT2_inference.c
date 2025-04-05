@@ -18,7 +18,7 @@ int main() {
     // Call the top-level function for stochastic multiplication.
     // It normalizes the inputs, converts them to fixed point, generates stochastic bitstreams,
     // performs bitwise AND (multiplication), and converts the result back to a float.
-    SC_mult(a, b, &result, max_abs_val, seed1, seed2);
+    result = SC_mult(a, b, max_abs_val, seed1, seed2);
 
     // Print the result. Note: Due to the stochastic nature, the result is an approximation.
     printf("binary multiplication result for %f * %f = %f\n", a, b, a * b);
