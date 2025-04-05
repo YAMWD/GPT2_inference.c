@@ -19,6 +19,8 @@
 #include "llmc/tokenizer.h"
 // defines: dataloader_init, dataloader_reset, dataloader_next_batch, dataloader_free
 #include "llmc/dataloader.h"
+// defines : SC_mult
+#include "llmc/SC.h"
 
 // ----------------------------------------------------------------------------
 // GPT-2 model definition

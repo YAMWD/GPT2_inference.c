@@ -14,6 +14,10 @@ There will be other versions of this code that specialize it and make it fast.
 // all the individual layers' forward and backward passes
 // B = batch_size, T = sequence_length, C = channels, V = vocab_size
 
+// Set initial seed values for the LFSR used in stochastic bitstream generation.
+ap_uint<24> seed1 = 0xACE1;  // Example seed value for input 'a'
+ap_uint<24> seed2 = 0xBEEF;  // Example seed value for input 'b'
+
 void encoder_forward(float* out,
                    int* inp, float* wte, float* wpe,
                    int B, int T, int C) {
@@ -221,7 +225,14 @@ void matmul_forward(float* out,
                 float val = (bias != NULL) ? bias[o] : 0.0f;
                 for (int i = 0; i < C; i++) {
                 #pragma HLS loop_tripcount min=768 max=3072
+                    #ifdef SC_MATMUL
+                    float tmp;
+                    float max_abs_val = 3;
+                    SC_mult(inp[bt * C + i], weight[o*C + i], &tmp, max_abs_val, seed1, seed2);
+                    val += tmp;
+                    #else
                     val += inp[bt * C + i] * weight[o*C + i];
+                    #endif
                 }
                 out[bt * OC + o] = val;
             }

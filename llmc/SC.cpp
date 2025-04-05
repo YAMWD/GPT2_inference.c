@@ -38,11 +38,11 @@ ap_uint<24> lfsr24(ap_uint<24> state)
 
 // Generate a stochastic bitstream from the fixed-point threshold.
 // Each bit in the stream is 1 if the pseudo-random number is less than fixed_val.
-void gen_SN(ap_uint<24> fixed_val, ap_uint<1> stream[N], ap_uint<24> seed) 
+void gen_SN(ap_uint<24> fixed_val, ap_uint<1> stream[SN_LEN], ap_uint<24> seed) 
 {
     #pragma HLS inline off
     ap_uint<24> state = seed;
-    for (int i = 0; i < N; i++) {
+    for (int i = 0; i < SN_LEN; i++) {
     #pragma HLS pipeline II=1
         state = lfsr24(state);
         stream[i] = (state < fixed_val) ? 1 : 0;
@@ -50,24 +50,24 @@ void gen_SN(ap_uint<24> fixed_val, ap_uint<1> stream[N], ap_uint<24> seed)
 }
 
 // Perform stochastic multiplication via bitwise XNOR on two bitstreams.
-void SC_Mul(ap_uint<1> stream1[N], ap_uint<1> stream2[N], ap_uint<1> out_stream[N]) 
+void SC_Mul(ap_uint<1> stream1[SN_LEN], ap_uint<1> stream2[SN_LEN], ap_uint<1> out_stream[SN_LEN]) 
 {
-    for (int i = 0; i < N; i++) {
+    for (int i = 0; i < SN_LEN; i++) {
     #pragma HLS pipeline II=1
         out_stream[i] = !(stream1[i] ^ stream2[i]);
     }
 }
 
 // Average the bits in a stochastic bitstream to recover an approximate float value.
-float SN_to_float(ap_uint<1> stream[N]) 
+float SN_to_float(ap_uint<1> stream[SN_LEN]) 
 {
     int sum = 0;
-    for (int i = 0; i < N; i++) {
+    for (int i = 0; i < SN_LEN; i++) {
     #pragma HLS pipeline II=1
         sum += stream[i];
     }
-    printf("%d\n", sum);
-    return (float)(sum + sum) / N - 1;
+    // printf("%d\n", sum);
+    return (float)(sum + sum) / SN_LEN - 1;
 }
 
 // Top-level function for stochastic multiplication.
@@ -89,21 +89,21 @@ void SC_mult(
     float a_norm = normalize_clip(a, max_val);
     float b_norm = normalize_clip(b, max_val);
 
-    printf("normed a b: %f %f\n", a_norm, b_norm);
+    // printf("normed a b: %f %f\n", a_norm, b_norm);
 
     // Convert normalized values to fixed-point Q0.24 representation.
     ap_uint<24> fixed_a = float_to_fixed24(a_norm);
     ap_uint<24> fixed_b = float_to_fixed24(b_norm);
 
     // Generate stochastic bitstreams for both operands.
-    ap_uint<1> stream_a[N], stream_b[N], stream_out[N];
+    ap_uint<1> stream_a[SN_LEN], stream_b[SN_LEN], stream_out[SN_LEN];
     gen_SN(fixed_a, stream_a, seed1);
     gen_SN(fixed_b, stream_b, seed2);
 
     float float_a = SN_to_float(stream_a);
     float float_b = SN_to_float(stream_b);
 
-    printf("%f %f\n", float_a, float_b);
+    // printf("%f %f\n", float_a, float_b);
 
     // Multiply the stochastic bitstreams (bitwise AND for unipolar representation).
     SC_Mul(stream_a, stream_b, stream_out);
