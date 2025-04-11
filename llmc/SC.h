@@ -23,11 +23,15 @@ ap_uint<24> next_lfsr24();
 // Generate a stochastic bitstream from a fixed-point threshold using a given seed.
 ap_uint<SN_LEN> gen_SN(ap_uint<SN_LEN> stream);
 
-// Multiply two stochastic bitstreams (element-wise AND).
-// void SC_Mul(ap_uint<1> stream1[SN_LEN], ap_uint<1> stream2[SN_LEN], ap_uint<1> out_stream[SN_LEN]);
-
 // Convert a stochastic bitstream back to a float by averaging the bits.
 float SN_to_float(ap_uint<SN_LEN> stream);
+
+// void gen_SN(float p, ap_uint<1> stream[SN_LEN]);
+
+// // Multiply two stochastic bitstreams (element-wise AND).
+// void SC_Mul(ap_uint<1> stream1[SN_LEN], ap_uint<1> stream2[SN_LEN], ap_uint<1> out_stream[SN_LEN]);
+
+// float SN_to_float(ap_uint<1> stream[SN_LEN]);
 
 // Top-level function to perform stochastic multiplication of two floats.
 // The inputs a and b are normalized using [min_val, max_val] and then converted into
