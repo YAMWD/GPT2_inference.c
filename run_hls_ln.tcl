@@ -1,11 +1,11 @@
 # Create a new Vitis HLS project
 open_project GPT2_block_0_ln_0
 set_top layernorm_forward 
-add_files ./llmc/dataloader.c 
-add_files ./llmc/rand.c 
-add_files ./llmc/tokenizer.c 
-add_files ./llmc/utils.c 
-add_files train_gpt2.c -cflags "-D TESTING_LN" 
+add_files ./llmc/dataloader.cpp
+add_files ./llmc/rand.cpp
+add_files ./llmc/tokenizer.cpp
+add_files ./llmc/utils.cpp
+add_files train_gpt2.cpp -cflags "-D TESTING_LN" 
 
 add_files -tb test_gpt2_ln.c
 

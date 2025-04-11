@@ -20,7 +20,7 @@ open_solution -reset "solution_GPT2_block_0_SC_mlp"
 set_part xcu280-fsvh2892-2LV-e ;# Set the target FPGA part (modify as needed)
 
 # Run C simulation
-csim_design
+# csim_design
 
 # Run High-Level Synthesis (HLS)
 csynth_design
