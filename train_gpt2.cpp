@@ -14,10 +14,6 @@ There will be other versions of this code that specialize it and make it fast.
 // all the individual layers' forward and backward passes
 // B = batch_size, T = sequence_length, C = channels, V = vocab_size
 
-// Set initial seed values for the LFSR used in stochastic bitstream generation.
-ap_uint<24> seed1 = 0xACE1;  // Example seed value for input 'a'
-ap_uint<24> seed2 = 0xBEEF;  // Example seed value for input 'b'
-
 void encoder_forward(float* out,
                    int* inp, float* wte, float* wpe,
                    int B, int T, int C) {
@@ -214,22 +210,36 @@ void matmul_forward(float* out,
     // this serves as an algorithmic reference, and as a fallback for
     // unfriendly input shapes inside matmul_forward(), below.
     
-    #pragma omp parallel for collapse(2)
-    for (int b = 0; b < B; b++) {
+    #ifdef TESTING_C_FC
+    printf("defined C_FC marco\n");
+
+    #pragma HLS INTERFACE m_axi port = out depth = 786432 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = inp depth = 196608 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = weight depth = 2359296 bundle = gmem
+    #pragma HLS INTERFACE m_axi port = bias depth = 3072 bundle = gmem
+
+    #pragma HLS INTERFACE s_axilite port = B
+    #pragma HLS INTERFACE s_axilite port = T
+    #pragma HLS INTERFACE s_axilite port = C
+    #pragma HLS INTERFACE s_axilite port = OC
+
+    #endif
+
+    // #pragma omp parallel for collapse(2)
+    batch_loop: for (int b = 0; b < B; b++) {
     #pragma HLS loop_tripcount min=4 max=4 avg=4
-        for (int t = 0; t < T; t++) {
+        row_loop: for (int t = 0; t < T; t++) {
         #pragma HLS loop_tripcount min=64 max=64 avg=64
             int bt = b * T + t;
-            for (int o = 0; o < OC; o++) {
+            oc_loop: for (int o = 0; o < OC; o++) {
             #pragma HLS loop_tripcount min=768 max=50304
                 float val = (bias != NULL) ? bias[o] : 0.0f;
-                for (int i = 0; i < C; i++) {
+                inner_loop: for (int i = 0; i < C; i++) {
+                // #pragma HLS loop_flatten off
                 #pragma HLS loop_tripcount min=768 max=3072
                     #ifdef SC_MATMUL
-                    float tmp;
-                    float max_abs_val = 3;
-                    SC_mult(inp[bt * C + i], weight[o*C + i], &tmp, max_abs_val, seed1, seed2);
-                    val += tmp;
+                    // SC_mult(inp[bt * C + i], weight[o*C + i], &tmp, max_abs_val, seed1, seed2);
+                    val += SC_mult(inp[bt * C + i], weight[o * C + i], 3);
                     #else
                     val += inp[bt * C + i] * weight[o*C + i];
                     #endif
