@@ -1,11 +1,11 @@
 # Create a new Vitis HLS project
 open_project -reset GPT2_block_0_attn
 set_top attn_block_forward 
-add_files ./llmc/dataloader.c 
-add_files ./llmc/rand.c 
-add_files ./llmc/tokenizer.c 
-add_files ./llmc/utils.c 
-add_files train_gpt2.c -cflags "-D TESTING_ATTN" 
+add_files ./llmc/dataloader.cpp
+add_files ./llmc/rand.cpp
+add_files ./llmc/tokenizer.cpp
+add_files ./llmc/utils.cpp
+add_files train_gpt2.cpp -cflags "-D TESTING_ATTN" 
 
 add_files -tb test_gpt2_attn.c
 
