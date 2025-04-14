@@ -60,15 +60,19 @@ ap_uint<SN_LEN> gen_SN(float p) {
 // Average the bits in a stochastic bitstream to recover an approximate float value.
 float SN_to_float(ap_uint<SN_LEN> stream) 
 {
+    // up-down counter
     #pragma HLS inline 
-    int sum = 0;
+    float sum = 0;
     SN_to_BN: for (int i = 0; i < SN_LEN; i++) {
     #pragma HLS pipeline II=1
     #pragma HLS unroll factor=8
-        sum += stream[i];
+        if (stream[i] == 1)
+            sum++;
+        else
+            sum--;
     }
     // printf("%d\n", sum);
-    return (float)(sum + sum) / SN_LEN - 1;
+    return sum / SN_LEN;
 }
 
 // void gen_SN(float p, ap_uint<1> stream[SN_LEN]) 
