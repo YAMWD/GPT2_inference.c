@@ -20,13 +20,16 @@ PLATFORM_BLOCKLIST += nodma
 ############################## Setting up Host Variables ##############################
 #Include Required Host Source Files
 HOST_SRCS += host.cpp
-HOST_SRCS += train_gpt2.c 
-HOST_SRCS += ./llmc/dataloader.c
-HOST_SRCS += ./llmc/rand.c
-HOST_SRCS += ./llmc/tokenizer.c
-HOST_SRCS += ./llmc/utils.c
+HOST_SRCS += train_gpt2.cpp
+HOST_SRCS += ./llmc/dataloader.cpp
+HOST_SRCS += ./llmc/rand.cpp
+HOST_SRCS += ./llmc/tokenizer.cpp
+HOST_SRCS += ./llmc/utils.cpp
+HOST_SRCS += ./llmc/SC.cpp
 # Host compiler global settings
 CXXFLAGS += -fmessage-length=0
+CXXFLAGS += -DSC_MATMUL
+CXXFLAGS += -I/mnt/sdb/opt/Xilinx/Vitis_HLS/2023.2/include/
 LDFLAGS += -lrt -lstdc++ 
 LDFLAGS += -luuid -lxrt_coreutil
 
@@ -50,9 +53,9 @@ build:  $(BUILD_DIR)/GPT2.xclbin
 xclbin: build
 
 ############################## Setting Rules for Binary Containers (Building Kernels) ##############################
-$(TEMP_DIR)/GPT2.xo: train_gpt2.c
+$(TEMP_DIR)/GPT2.xo: train_gpt2.cpp
 	mkdir -p $(TEMP_DIR)
-	v++ -c $(VPP_FLAGS) -t $(TARGET) --platform $(PLATFORM) -k gpt2_forward --temp_dir $(TEMP_DIR)  -I'$(<D)' -o'$@' '$<'
+	v++ -c $(VPP_FLAGS) -t $(TARGET) --platform $(PLATFORM) -k gpt2_forward --temp_dir $(TEMP_DIR)  -I'$(<D)' -o'$@' '$<' ./llmc/SC.cpp
 
 $(BUILD_DIR)/GPT2.xclbin: $(TEMP_DIR)/GPT2.xo
 	mkdir -p $(BUILD_DIR)
