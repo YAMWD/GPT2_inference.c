@@ -2,14 +2,13 @@
 #include <stdio.h>
 #include <math.h>
 
-ap_uint<24> g_lfsr_state = 0xACE1;
-
 // Normalize x to the [0,1) range using provided min and max values.
 float normalize_clip(float x, float max_val) 
 {
     #pragma HLS inline 
     // normed_x = x / max_val
     // prob = (normed_x + 1) / 2
+
     float x_norm = x / (max_val + max_val) + 0.5;
     if (x_norm >= 1.0f) x_norm = 0.999999f;
     if (x_norm < 0.0f)  x_norm = 0.0f;
@@ -34,7 +33,7 @@ ap_uint<24> float_to_fixed24(float x_norm)
 }
 
 // A simple 24-bit LFSR; adjust feedback taps as needed.
-ap_uint<24> next_lfsr24() 
+ap_uint<24> next_lfsr24(ap_uint<24> g_lfsr_state) 
 {
     #pragma HLS inline 
     bool new_bit = g_lfsr_state[23] ^ g_lfsr_state[22] ^ g_lfsr_state[20] ^ g_lfsr_state[19];
@@ -42,7 +41,7 @@ ap_uint<24> next_lfsr24()
     return g_lfsr_state; 
 }
 
-ap_uint<SN_LEN> gen_SN(float p) {
+ap_uint<SN_LEN> gen_SN(float p, ap_uint<24> lfsr_state) {
     #pragma HLS inline 
     ap_uint<SN_LEN> bitstream = 0;
     ap_uint<24> threshold = float_to_fixed24(p);
@@ -51,7 +50,8 @@ ap_uint<SN_LEN> gen_SN(float p) {
     BN_to_SN: for (int i = 0; i < SN_LEN; i++) {
     #pragma HLS pipeline II=1
     #pragma HLS unroll factor=8
-        bitstream[i] = (next_lfsr24() < threshold) ? 1 : 0;
+        lfsr_state = next_lfsr24(lfsr_state);
+        bitstream[i] = (lfsr_state < threshold) ? 1 : 0;
     }
 
     return bitstream;
@@ -62,7 +62,7 @@ float SN_to_float(ap_uint<SN_LEN> stream)
 {
     // up-down counter
     #pragma HLS inline 
-    float sum = 0;
+    int64_t sum = 0;
     SN_to_BN: for (int i = 0; i < SN_LEN; i++) {
     #pragma HLS pipeline II=1
     #pragma HLS unroll factor=8
@@ -71,8 +71,7 @@ float SN_to_float(ap_uint<SN_LEN> stream)
         else
             sum--;
     }
-    // printf("%d\n", sum);
-    return sum / SN_LEN;
+    return (float)sum / SN_LEN;
 }
 
 // void gen_SN(float p, ap_uint<1> stream[SN_LEN]) 
@@ -125,9 +124,11 @@ float SC_mult(float a, float b, float max_val)
 
     // printf("normed a b: %f %f\n", normed_a, normed_b);
 
+    ap_uint<24> lfsr_state_1 = 0xACE1;
+    ap_uint<24> lfsr_state_2 = 0xBCE1;
     // Generate stochastic bitstreams for both operands.
-    ap_uint<SN_LEN> stream_a = gen_SN(normed_a);
-    ap_uint<SN_LEN> stream_b = gen_SN(normed_b);
+    ap_uint<SN_LEN> stream_a = gen_SN(normed_a, lfsr_state_1);
+    ap_uint<SN_LEN> stream_b = gen_SN(normed_b, lfsr_state_2);
 
     // bipolar SC mult is done by an XNOR gate
     ap_uint<SN_LEN> stream_out = ~(stream_a ^ stream_b);
