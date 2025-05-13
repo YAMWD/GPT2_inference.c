@@ -19,7 +19,7 @@ PLATFORM = xilinx_u280_gen3x16_xdma_1_202211_1
 PLATFORM_BLOCKLIST += nodma 
 ############################## Setting up Host Variables ##############################
 #Include Required Host Source Files
-HOST_SRCS += host.cpp
+HOST_SRCS += host_matmul.cpp
 HOST_SRCS += train_gpt2.cpp
 HOST_SRCS += ./llmc/dataloader.cpp
 HOST_SRCS += ./llmc/rand.cpp
@@ -55,11 +55,11 @@ xclbin: build
 ############################## Setting Rules for Binary Containers (Building Kernels) ##############################
 $(TEMP_DIR)/GPT2.xo: train_gpt2.cpp
 	mkdir -p $(TEMP_DIR)
-	v++ -c $(VPP_FLAGS) -t $(TARGET) --platform $(PLATFORM) -k gpt2_forward --temp_dir $(TEMP_DIR)  -I'$(<D)' -o'$@' '$<' ./llmc/SC.cpp
+	v++ -c $(VPP_FLAGS) -t $(TARGET) --platform $(PLATFORM) -k matmul_forward --temp_dir $(TEMP_DIR)  -I'$(<D)' -o'$@' '$<' ./llmc/SC.cpp
 
 $(BUILD_DIR)/GPT2.xclbin: $(TEMP_DIR)/GPT2.xo
 	mkdir -p $(BUILD_DIR)
-	v++ -l $(VPP_FLAGS) $(VPP_LDFLAGS) -t $(TARGET) --platform $(PLATFORM) --config connectivity.cfg --temp_dir $(TEMP_DIR) -o'$(LINK_OUTPUT)' $(+)
+	v++ -l $(VPP_FLAGS) $(VPP_LDFLAGS) -t $(TARGET) --platform $(PLATFORM) --temp_dir $(TEMP_DIR) -o'$(LINK_OUTPUT)' $(+)
 	v++ -p $(LINK_OUTPUT) $(VPP_FLAGS) -t $(TARGET) --platform $(PLATFORM) --package.out_dir $(PACKAGE_OUT) -o $(BUILD_DIR)/GPT2.xclbin
 
 ############################## Setting Rules for Host (Building Host Executable) ##############################
