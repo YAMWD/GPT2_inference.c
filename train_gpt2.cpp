@@ -225,6 +225,22 @@ void matmul_forward(float* out,
 
     #endif
 
+    // B = 4;
+    // T = 64;
+    // C = 768;
+    // OC = 3072;
+    int SN_LEN = 1024;
+
+    /*
+    float weight_max = -0x3f3f3f;
+    float weight_min = 0x3f3f3f;
+
+    float input_max = -0x3f3f3f;
+    float input_min = 0x3f3f3f;
+
+    float max_val = 4.587719;
+    */
+
     // #pragma omp parallel for collapse(2)
     batch_loop: for (int b = 0; b < B; b++) {
     #pragma HLS loop_tripcount min=4 max=4 avg=4
@@ -237,17 +253,57 @@ void matmul_forward(float* out,
                 inner_loop: for (int i = 0; i < C; i++) {
                 // #pragma HLS loop_flatten off
                 #pragma HLS loop_tripcount min=768 max=3072
-                    #ifdef SC_MATMUL
+                    // #ifdef SC_MATMUL
                     // SC_mult(inp[bt * C + i], weight[o*C + i], &tmp, max_abs_val, seed1, seed2);
-                    val += SC_mult(inp[bt * C + i], weight[o * C + i], 3);
-                    #else
-                    val += inp[bt * C + i] * weight[o*C + i];
-                    #endif
+                    if (inp[bt * C + i] > 1 || inp[bt * C + i] < -1 || weight[o * C + i] > 1 || weight[o * C + i] < -1)
+                    {    
+                        // printf("BC %f %f\n\n", inp[bt * C + i], weight[o * C + i]);
+                        val += inp[bt * C + i] * weight[o * C + i];
+                    }
+                    else
+                    {
+                        // printf("SC %f %f\n\n", inp[bt * C + i], weight[o * C + i]);
+                        val += SC_mult(inp[bt * C + i], weight[o * C + i], 1, SN_LEN);
+                    }
+
+                    /*
+                    if (weight_max < weight[o * C + i])
+                        weight_max = weight[o * C + i];
+                    
+                    if (weight_min > weight[o * C + i])
+                        weight_min = weight[o * C + i];
+
+                    if (input_max < inp[bt * C + i])
+                        input_max = inp[bt * C + i];
+
+                    if (input_min > inp[bt * C + i])
+                        input_min = inp[bt * C + i];
+                    */
+
+                    /*
+                    if (inp[bt * C + i] >= 1 || weight[o * C + i] >= 1)
+                    {
+                        printf("%f %f %f %f \n\n", inp[bt * C + i], weight[o * C + i], SC_mult(inp[bt * C + i], weight[o * C + i], 1), inp[bt * C + i] * weight[o * C + i]);
+                        printf("MAE: %f\n", fabs(SC_mult(inp[bt * C + i], weight[o * C + i], 1) - inp[bt * C + i] * weight[o * C + i]));
+                    }
+                    */
+
+                    // #else
+                    // val += inp[bt * C + i] * weight[o*C + i];
+                    // #endif
                 }
                 out[bt * OC + o] = val;
+                // break;
             }
+            // break;
         }
+        // break;
     }
+
+    /*
+    printf("weight min: %f max: %f \n\n", weight_min, weight_max);
+    printf("input min: %f max: %f \n\n", input_min, input_max);
+    */
 }
 
 /*
