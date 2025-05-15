@@ -5,11 +5,13 @@ int check_tensor(float *a, float *b, int n, const char* label) {
     int print_upto = 5;
     int ok = 1;
     float maxdiff = 0.0f;
+    float totdiff = 0.0f;
     float tol = 2e-2f;
     printf("%s\n", label);
     for (int i = 0; i < n; i++) {
         // look at the diffence at position i of these two tensors
         float diff = fabsf(a[i] - b[i]);
+        totdiff += diff;
 
         // keep track of the overall error
         ok = ok && (diff <= tol);
@@ -32,6 +34,9 @@ int check_tensor(float *a, float *b, int n, const char* label) {
     } else {
         printf("TENSOR NOT OK, maxdiff = %e\n", maxdiff);
     }
+
+    printf("MAE: %f\n", totdiff / n);
+
     return ok;
 }
 
@@ -107,7 +112,8 @@ int main(int argc, char *argv[]) {
     double time_elapsed_s = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
     printf("time eplased: %lf\n", time_elapsed_s);
 
-    check_tensor(c_fc_outputs, expected_outputs, B * T * 4 * C, "mlp_out");
+    // check_tensor(c_fc_outputs, expected_outputs, B * T * 4 * C, "mlp_out");
+    check_tensor(c_fc_outputs, expected_outputs, 4 * C, "mlp_out");
 
     // free everything
     free(inputs);

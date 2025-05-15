@@ -3,13 +3,13 @@
 
 int main() {
     // Example input values (outside [0,1), assuming a known range, e.g., [-10,10])
-    float a = 0.8374;
-    float b = 2.7956;
+    float a = -0.125765 ;
+    float b = 0.012414;
     float result;
 
     // Define the expected input range for normalization.
     // For example, if we expect x ∈ [-10, 10]:
-    float max_abs_val = 2.7956f;
+    float max_abs_val = 1.0f;
 
     // Call the top-level function for stochastic multiplication.
     // It normalizes the inputs, converts them to fixed point, generates stochastic bitstreams,

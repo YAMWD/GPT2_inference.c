@@ -229,7 +229,6 @@ void matmul_forward(float* out,
     // T = 64;
     // C = 768;
     // OC = 3072;
-    int SN_LEN = 1024;
 
     /*
     float weight_max = -0x3f3f3f;
@@ -255,6 +254,8 @@ void matmul_forward(float* out,
                 #pragma HLS loop_tripcount min=768 max=3072
                     // #ifdef SC_MATMUL
                     // SC_mult(inp[bt * C + i], weight[o*C + i], &tmp, max_abs_val, seed1, seed2);
+
+                    /*
                     if (inp[bt * C + i] > 1 || inp[bt * C + i] < -1 || weight[o * C + i] > 1 || weight[o * C + i] < -1)
                     {    
                         // printf("BC %f %f\n\n", inp[bt * C + i], weight[o * C + i]);
@@ -263,8 +264,15 @@ void matmul_forward(float* out,
                     else
                     {
                         // printf("SC %f %f\n\n", inp[bt * C + i], weight[o * C + i]);
-                        val += SC_mult(inp[bt * C + i], weight[o * C + i], 1, SN_LEN);
+                        val += SC_mult(inp[bt * C + i], weight[o * C + i]);
                     }
+                    */
+                    
+                    val += SC_mult(inp[bt * C + i], weight[o * C + i]);
+
+                    // printf("%f %f %f\n\n", inp[bt * C + i], weight[o * C + i], SC_mult(inp[bt * C + i], weight[o * C + i], 1));
+                    
+                    // val += SC_mult(inp[bt * C + i], weight[o * C + i], 1);
 
                     /*
                     if (weight_max < weight[o * C + i])

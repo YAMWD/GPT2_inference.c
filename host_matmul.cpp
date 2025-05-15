@@ -179,6 +179,7 @@ int main(int argc, char** argv) {
     struct timespec start, end;
     clock_gettime(CLOCK_MONOTONIC, &start);
 
+    printf("run start with SN_LEN: %d\n", SN_LEN);
     run.start();
     
     // 7. Wait for kernel completion
