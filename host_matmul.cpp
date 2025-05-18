@@ -32,7 +32,16 @@ static const std::string error_message =
     "Error: Result mismatch:\n"
     "i = %d CPU result = %d Device result = %d\n";
 
-int check_tensor(float *a, float *b, int n, const char* label) {
+// Compute the Frobenius norm of a matrix
+float frobenius_norm(float *matrix, int n) {
+    float sum = 0.0f;
+    for (int i = 0; i < n; i++) {
+        sum += matrix[i] * matrix[i];
+    }
+    return sqrtf(sum);
+}
+
+int check_tensor(float *a, float *b, float *Diff, int n, const char* label) {
     int print_upto = 5;
     int ok = 1;
     float maxdiff = 0.0f;
@@ -42,6 +51,7 @@ int check_tensor(float *a, float *b, int n, const char* label) {
     for (int i = 0; i < n; i++) {
         // look at the diffence at position i of these two tensors
         float diff = fabsf(a[i] - b[i]);
+        Diff[i] = diff;
         totdiff += diff;
 
         // keep track of the overall error
@@ -66,8 +76,15 @@ int check_tensor(float *a, float *b, int n, const char* label) {
         printf("TENSOR NOT OK, maxdiff = %e\n", maxdiff);
     }
 
-    printf("MAE: %f\n", totdiff / n);
-    
+    // Compute Frobenius norms
+    float norm_A = frobenius_norm(b, n);
+    float norm_diff = frobenius_norm(Diff, n);
+
+    free(Diff);
+
+    const float epsilon = 1e-8f; // to avoid division by zero
+    printf("relative diff: %f\n\n", norm_diff / (norm_A + epsilon));
+
     return ok;
 }
 
@@ -136,6 +153,8 @@ int main(int argc, char** argv) {
     float *inputs = (float*) malloc(B * T * C * sizeof(float));
     float *c_fc_outputs = (float*) malloc(B * T * 4 * C * sizeof(float));
     float *expected_outputs = (float*) malloc(B * T * 4 * C * sizeof(float));
+    float *diff = (float*) malloc(B * T * 4 * C * sizeof(float));
+
 
     FILE *c_fc_state_file = fopen("gpt2_124M_block_0_c_fc_debug_state.bin", "rb");
     // read reference information from Python
@@ -196,7 +215,7 @@ int main(int argc, char** argv) {
     std::cout << "Read the output data\n";
     buffer_c_fc_outputs.read(c_fc_outputs);
 
-    check_tensor(c_fc_outputs, expected_outputs, B * T * 4 * C, "c_fc_out");
+    check_tensor(c_fc_outputs, expected_outputs, diff, B * T * 4 * C, "c_fc_out");
 
     // free everything
     free(inputs);
