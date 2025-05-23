@@ -41,9 +41,9 @@ ap_uint<24> next_lfsr24(ap_uint<24> g_lfsr_state)
     return g_lfsr_state; 
 }
 
-ap_uint<SN_LEN> gen_SN(float p, ap_uint<24> lfsr_state) {
+SN gen_SN(float p, ap_uint<24> lfsr_state) {
     #pragma HLS inline 
-    ap_uint<SN_LEN> bitstream = 0;
+    SN bitstream = 0;
     ap_uint<24> threshold = float_to_fixed24(p);
 
     // Fill each bit of the packed stream
@@ -58,7 +58,7 @@ ap_uint<SN_LEN> gen_SN(float p, ap_uint<24> lfsr_state) {
 }
 
 // Average the bits in a stochastic bitstream to recover an approximate float value.
-float SN_to_float(ap_uint<SN_LEN> stream) 
+float SN_to_float(SN stream) 
 {
     // up-down counter
     #pragma HLS inline 
@@ -127,11 +127,11 @@ float SC_mult(float a, float b, float max_val)
     ap_uint<24> lfsr_state_1 = 0xACE1;
     ap_uint<24> lfsr_state_2 = 0xBCE1;
     // Generate stochastic bitstreams for both operands.
-    ap_uint<SN_LEN> stream_a = gen_SN(normed_a, lfsr_state_1);
-    ap_uint<SN_LEN> stream_b = gen_SN(normed_b, lfsr_state_2);
+    SN stream_a = gen_SN(normed_a, lfsr_state_1);
+    SN stream_b = gen_SN(normed_b, lfsr_state_2);
 
     // bipolar SC mult is done by an XNOR gate
-    ap_uint<SN_LEN> stream_out = ~(stream_a ^ stream_b);
+    SN stream_out = ~(stream_a ^ stream_b);
 
     // float float_a = SN_to_float(stream_a);
     // float float_b = SN_to_float(stream_b);
