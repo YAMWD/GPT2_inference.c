@@ -41,49 +41,52 @@ ap_uint<24> next_lfsr24(ap_uint<24> g_lfsr_state)
     return g_lfsr_state; 
 }
 
-SN gen_SN(float p, ap_uint<24> lfsr_state) {
-    #pragma HLS inline 
-    SN bitstream = 0;
-    ap_uint<24> threshold = float_to_fixed24(p);
+// SN gen_SN(float p, ap_uint<24> lfsr_state) {
+//     #pragma HLS inline 
+//     SN bitstream = 0;
+//     ap_uint<24> threshold = float_to_fixed24(p);
 
-    // Fill each bit of the packed stream
-    BN_to_SN: for (int i = 0; i < SN_LEN; i++) {
-    #pragma HLS pipeline II=1
-    #pragma HLS unroll factor=8
-        lfsr_state = next_lfsr24(lfsr_state);
-        bitstream[i] = (lfsr_state < threshold) ? 1 : 0;
-    }
+//     // Fill each bit of the packed stream
+//     BN_to_SN: for (int i = 0; i < SN_LEN; i++) {
+//     #pragma HLS pipeline II=1
+//     #pragma HLS unroll factor=8
+//         lfsr_state = next_lfsr24(lfsr_state);
+//         bitstream[i] = (lfsr_state < threshold) ? 1 : 0;
+//     }
 
-    return bitstream;
-}
+//     return bitstream;
+// }
 
 // Average the bits in a stochastic bitstream to recover an approximate float value.
-float SN_to_float(SN stream) 
+float SN_to_float(SN stream[NUM_WIDTH]) 
 {
     // up-down counter
     #pragma HLS inline 
     int64_t sum = 0;
-    SN_to_BN: for (int i = 0; i < SN_LEN; i++) {
+    SN_to_BN: for (int i = 0; i < SN_UNIT; i++) {
     #pragma HLS pipeline II=1
-    #pragma HLS unroll factor=8
-        if (stream[i] == 1)
-            sum++;
-        else
-            sum--;
+        for(int j = 0; j < NUM_WIDTH; j++)
+            sum += (stream[j][i] == 1) ? 1 : -1;
     }
+
+    // printf("%d\n\n", sum);
     return (float)sum / SN_LEN;
 }
 
-// void gen_SN(float p, ap_uint<1> stream[SN_LEN]) 
-// {
-//     ap_uint<24> threshold = float_to_fixed24(p);
+void gen_SN(float p, ap_uint<24> lfsr_state, SN stream[NUM_WIDTH]) 
+{
+    #pragma HLS inline
 
-//     #pragma HLS inline
-//     for (int i = 0; i < SN_LEN; i++) {
-//     #pragma HLS pipeline II=1
-//         stream[i] = (next_lfsr24() < threshold) ? 1 : 0;
-//     }
-// }
+    ap_uint<24> threshold = float_to_fixed24(p);
+
+    gen_SN: for (int i = 0; i < SN_UNIT; i++) {
+    #pragma HLS pipeline II=1
+        gen_SN_NUM_WIDTH: for(int j = 0; j < NUM_WIDTH; j++) {
+            lfsr_state = next_lfsr24(lfsr_state);
+            stream[j][i] = (lfsr_state < threshold) ? 1 : 0;
+        }
+    }
+}
 
 // void SC_Mul(ap_uint<1> stream1[SN_LEN], ap_uint<1> stream2[SN_LEN], ap_uint<1> out_stream[SN_LEN]) 
 // {
@@ -127,11 +130,24 @@ float SC_mult(float a, float b, float max_val)
     ap_uint<24> lfsr_state_1 = 0xACE1;
     ap_uint<24> lfsr_state_2 = 0xBCE1;
     // Generate stochastic bitstreams for both operands.
-    SN stream_a = gen_SN(normed_a, lfsr_state_1);
-    SN stream_b = gen_SN(normed_b, lfsr_state_2);
+    SN stream_a[NUM_WIDTH];
+    SN stream_b[NUM_WIDTH];
+    SN stream_out[NUM_WIDTH];
+
+    #pragma HLS ARRAY_PARTITION variable=stream_a complete
+    #pragma HLS ARRAY_PARTITION variable=stream_b complete
+    #pragma HLS ARRAY_PARTITION variable=stream_out complete
+
+    gen_SN(normed_a, lfsr_state_1, stream_a);
+    gen_SN(normed_b, lfsr_state_2, stream_b);
 
     // bipolar SC mult is done by an XNOR gate
-    SN stream_out = ~(stream_a ^ stream_b);
+    // SN stream_out = ~(stream_a ^ stream_b);
+    for (int i = 0; i < NUM_WIDTH; i++)
+    {
+        #pragma HLS unroll
+        stream_out[i] = ~(stream_a[i] ^ stream_b[i]);
+    }
 
     // float float_a = SN_to_float(stream_a);
     // float float_b = SN_to_float(stream_b);

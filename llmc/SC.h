@@ -4,8 +4,11 @@
 #include <ap_fixed.h>
 #include <ap_int.h>
 
-#define SN_LEN 1024 // Length of the stochastic bitstream
-typedef ap_uint<SN_LEN> SN;
+#define SN_LEN 16384 // Length of the stochastic bitstream
+#define NUM_WIDTH 1024
+#define SN_UNIT (SN_LEN / NUM_WIDTH)
+
+typedef ap_uint<SN_UNIT> SN;
 
 // Normalize a float to [0,1) given a known min and max range.
 float normalize_clip(float x, float max_val);
@@ -20,12 +23,12 @@ ap_uint<24> float_to_fixed24(float x_norm);
 ap_uint<24> next_lfsr24(ap_uint<24> g_lfsr_state);
 
 // Generate a stochastic bitstream from a fixed-point threshold using a given seed.
-SN gen_SN(float p, ap_uint<24> lfsr_state);
+// SN gen_SN(float p, ap_uint<24> lfsr_state);
 
 // Convert a stochastic bitstream back to a float by averaging the bits.
-float SN_to_float(SN stream);
+float SN_to_float(SN stream[NUM_WIDTH]);
 
-// void gen_SN(float p, ap_uint<1> stream[SN_LEN]);
+void gen_SN(float p, SN stream[NUM_WIDTH]);
 
 // // Multiply two stochastic bitstreams (element-wise AND).
 // void SC_Mul(ap_uint<1> stream1[SN_LEN], ap_uint<1> stream2[SN_LEN], ap_uint<1> out_stream[SN_LEN]);
