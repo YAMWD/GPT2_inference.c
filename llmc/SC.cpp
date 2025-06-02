@@ -41,6 +41,44 @@ ap_uint<24> next_lfsr24(ap_uint<24> g_lfsr_state)
     return g_lfsr_state; 
 }
 
+float generate_halton_number(unsigned int index, float base)
+{
+    // #pragma HLS inline
+
+    float ans = 0;
+    float w = 1 / base;
+
+    if (base == 2) {
+        while(index) {
+        // #pragma HLS loop_tripcount min = 1 max = 15
+            // #pragma HLS unroll
+            ans += (index & 1) * w;
+            index >>= 1;
+            w /= base;
+        }    
+    }
+
+    if (base == 3) {
+        while (index) {
+            ans += (index % 3) * w;
+            index /= 3;
+            w /= base;
+        }
+    }
+
+    return ans;
+}
+
+void init_halton(float halton_sequence[NUM_WIDTH][SN_UNIT], float base)
+{
+    #pragma HLS ARRAY_PARTITION variable=halton_sequence type=complete dim=1
+
+    for (int i = 0; i < SN_UNIT; i++) {
+        for (int j = 0; j < NUM_WIDTH; j++)
+            halton_sequence[j][i] = generate_halton_number(j * SN_UNIT + i + 1, base);
+    }
+}
+
 // SN gen_SN(float p, ap_uint<24> lfsr_state) {
 //     #pragma HLS inline 
 //     SN bitstream = 0;
@@ -65,25 +103,27 @@ float SN_to_float(SN stream[NUM_WIDTH])
     int64_t sum = 0;
     SN_to_BN: for (int i = 0; i < SN_UNIT; i++) {
     #pragma HLS pipeline II=1
-        for(int j = 0; j < NUM_WIDTH; j++)
+        for(int j = 0; j < NUM_WIDTH; j++) {
             sum += (stream[j][i] == 1) ? 1 : -1;
+        }
     }
 
-    // printf("%d\n\n", sum);
+    // printf("%d \n\n", sum);
     return (float)sum / SN_LEN;
 }
 
-void gen_SN(float p, ap_uint<24> lfsr_state, SN stream[NUM_WIDTH]) 
+void gen_SN(float p, float rn_sequence[NUM_WIDTH][SN_UNIT], SN stream[NUM_WIDTH]) 
 {
     #pragma HLS inline
+    #pragma HLS ARRAY_PARTITION variable=rn_sequence type=complete dim=1
 
-    ap_uint<24> threshold = float_to_fixed24(p);
+    // halton-sequence-based impl
 
     gen_SN: for (int i = 0; i < SN_UNIT; i++) {
     #pragma HLS pipeline II=1
         gen_SN_NUM_WIDTH: for(int j = 0; j < NUM_WIDTH; j++) {
-            lfsr_state = next_lfsr24(lfsr_state);
-            stream[j][i] = (lfsr_state < threshold) ? 1 : 0;
+            // stream[j][i] = (generate_halton_number(j * SN_UNIT + (i + 1)) < p);
+            stream[j][i] = (rn_sequence[j][i] < p);
         }
     }
 }
@@ -112,7 +152,7 @@ void gen_SN(float p, ap_uint<24> lfsr_state, SN stream[NUM_WIDTH])
 // Top-level function for stochastic multiplication.
 // This function normalizes the inputs, converts them to fixed-point, generates the corresponding
 // stochastic bitstreams, performs a bitwise AND for multiplication, and then converts the result back to float.
-float SC_mult(float a, float b, float max_val) 
+float SC_mult(float a, float b, float max_val, float rn_sequence_1[NUM_WIDTH][SN_UNIT], float rn_sequence_2[NUM_WIDTH][SN_UNIT]) 
 {
     #pragma HLS INTERFACE s_axilite port=a      bundle=CTRL
     #pragma HLS INTERFACE s_axilite port=b      bundle=CTRL
@@ -138,8 +178,8 @@ float SC_mult(float a, float b, float max_val)
     #pragma HLS ARRAY_PARTITION variable=stream_b complete
     #pragma HLS ARRAY_PARTITION variable=stream_out complete
 
-    gen_SN(normed_a, lfsr_state_1, stream_a);
-    gen_SN(normed_b, lfsr_state_2, stream_b);
+    gen_SN(normed_a, rn_sequence_1, stream_a);
+    gen_SN(normed_b, rn_sequence_2, stream_b);
 
     // bipolar SC mult is done by an XNOR gate
     // SN stream_out = ~(stream_a ^ stream_b);

@@ -107,13 +107,13 @@ void layernorm_forward(float* out, float* mean, float* rstd,
     }
 }
 
+/*
 void attn_block_forward(float *out, float *c_attn_out, float *qkv_out, 
                         float *inp, 
                         float *qkvw, float *qkvb,
                         float *preatt, float *att,
                         float *attprojw, float *attprojb,
-                        int B, int T, int C, int NH)
-{
+                        int B, int T, int C, int NH) {
     #ifdef TESTING_ATTN
     printf("defined ATTN marco\n");
 
@@ -162,8 +162,7 @@ void mlp_block_forward(float *c_proj_outputs, float *c_fc_gelu_outputs, float *c
                         float *inputs, 
                         float *fcw, float *fcb,
                         float *fcprojw, float *fcprojb,
-                        int B, int T, int C)
-{
+                        int B, int T, int C) {
     #ifdef TESTING_MLP
     printf("defined MLP marco\n");
 
@@ -202,9 +201,12 @@ void mlp_block_forward(float *c_proj_outputs, float *c_fc_gelu_outputs, float *c
         fcprojb,
         B, T, 4 * C, C);
 }
+*/
 
 void matmul_forward(float* out,
-                         const float* inp, const float* weight, const float* bias,
+                         const float* inp, const float* weight, const float* bias, 
+                         float rn_sequence_1[NUM_WIDTH][SN_UNIT], 
+                         float rn_sequence_2[NUM_WIDTH][SN_UNIT], 
                          int B, int T, int C, int OC) {
     // the most naive implementation of matrix multiplication
     // this serves as an algorithmic reference, and as a fallback for
@@ -223,6 +225,8 @@ void matmul_forward(float* out,
     #pragma HLS INTERFACE s_axilite port = C
     #pragma HLS INTERFACE s_axilite port = OC
 
+    #pragma HLS ARRAY_PARTITION variable=halton_sequence type=complete dim=1
+
     #endif
 
     // B = 4;
@@ -237,7 +241,7 @@ void matmul_forward(float* out,
     float input_min = 0x3f3f3f;
 
     float max_val = 4.587719;
-
+    
     // #pragma omp parallel for collapse(2)
     batch_loop: for (int b = 0; b < B; b++) {
     #pragma HLS loop_tripcount min=4 max=4 avg=4
@@ -264,9 +268,9 @@ void matmul_forward(float* out,
                     //     val += SC_mult(inp[bt * C + i], weight[o * C + i], 1);
                     // }
                     
-                    val += SC_mult(inp[bt * C + i], weight[o * C + i], 1);
+                    val += SC_mult(inp[bt * C + i], weight[o * C + i], 1, rn_sequence_1, rn_sequence_2);
 
-                    // printf("%f %f %f\n\n", inp[bt * C + i], weight[o * C + i], SC_mult(inp[bt * C + i], weight[o * C + i], 1));
+                    // printf("%f %f %f\n\n", inp[bt * C + i], weight[o * C + i], SC_mult(inp[bt * C + i], weight[o * C + i], 1, halton_sequence));
                     
                     // val += SC_mult(inp[bt * C + i], weight[o * C + i], 1);
 
@@ -287,11 +291,11 @@ void matmul_forward(float* out,
                     // #endif
                 }
                 out[bt * OC + o] = val;
-                // break;
+                break;
             }
-            // break;
+            break;
         }
-        // break;
+        break;
     }
 
     
@@ -706,6 +710,7 @@ void gpt2_build_from_checkpoint(GPT2 *model, ParameterTensors *model_params, flo
     model->mean_loss = -1.0f; // -1.0f will designate no loss
 }
 
+/*
 void gpt2_forward(
     GPT2 *model, 
 
@@ -946,6 +951,7 @@ void gpt2_forward(
     }
     // printf("all the computation are done\n");
 }
+*/
 
 void gpt2_free(float *model_params_memory, float *model_acts_memory) {
     free(model_params_memory);

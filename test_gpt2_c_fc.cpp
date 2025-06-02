@@ -100,11 +100,19 @@ int main(int argc, char *argv[]) {
     struct timespec start, end;
     clock_gettime(CLOCK_MONOTONIC, &start);
 
+    float halton_sequence_base_2[NUM_WIDTH][SN_UNIT];
+    float halton_sequence_base_3[NUM_WIDTH][SN_UNIT];
+
+    init_halton(halton_sequence_base_2, 2);
+    init_halton(halton_sequence_base_3, 3);
+
     matmul_forward(
         c_fc_outputs,
         inputs,
         model_params.fcw,
         model_params.fcb,
+        halton_sequence_base_2,
+        halton_sequence_base_3,
         B, T, C, 4 * C);
     
     printf("c_fc done\n");

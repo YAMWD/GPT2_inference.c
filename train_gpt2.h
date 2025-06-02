@@ -137,7 +137,9 @@ void mlp_block_forward(float *c_proj_outputs, float *c_fc_gelu_outputs, float *c
                         int B, int T, int C);
 
 void matmul_forward(float* out,
-                         const float* inp, const float* weight, const float* bias,
+                         const float* inp, const float* weight, const float* bias, 
+                         float rn_sequence_1[NUM_WIDTH][SN_UNIT],
+                         float rn_sequence_2[NUM_WIDTH][SN_UNIT],
                          int B, int T, int C, int OC);
 
 void attention_forward(float* out, float* preatt, float* att,
