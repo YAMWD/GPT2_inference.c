@@ -83,7 +83,7 @@ void gen_SN(float p, ap_uint<24> lfsr_state, SN stream[NUM_WIDTH])
     #pragma HLS pipeline II=1
         gen_SN_NUM_WIDTH: for(int j = 0; j < NUM_WIDTH; j++) {
             lfsr_state = next_lfsr24(lfsr_state);
-            stream[j][i] = (lfsr_state < threshold) ? 1 : 0;
+            stream[j][i] = (lfsr_state < threshold);
         }
     }
 }
