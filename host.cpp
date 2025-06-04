@@ -716,7 +716,8 @@ int main(int argc, char** argv) {
     printf("train dataset num_batches: %zu\n", train_loader.num_tokens / (B*T));
     printf("val dataset num_batches: %zu\n", val_loader.num_tokens / (B*T));
     int train_num_batches = train_loader.num_tokens / (B*T);
-    int val_num_batches = val_loader.num_tokens / (B*T);
+    // int val_num_batches = val_loader.num_tokens / (B*T);
+    int val_num_batches = 16;
 
     // build the Tokenizer
     Tokenizer tokenizer;
