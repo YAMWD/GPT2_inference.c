@@ -291,11 +291,11 @@ void matmul_forward(float* out,
                     // #endif
                 }
                 out[bt * OC + o] = val;
-                break;
+                // break;
             }
-            break;
+            // break;
         }
-        break;
+        // break;
     }
 
     

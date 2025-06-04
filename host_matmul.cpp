@@ -162,6 +162,12 @@ int main(int argc, char** argv) {
     freadCheck(expected_outputs, sizeof(float), B * T * 4 * C, c_fc_state_file);
     fcloseCheck(c_fc_state_file);
 
+    float halton_sequence_base_2[NUM_WIDTH][SN_UNIT];
+    float halton_sequence_base_3[NUM_WIDTH][SN_UNIT];
+
+    init_halton(halton_sequence_base_2, 2);
+    init_halton(halton_sequence_base_3, 3);
+
     /********************************************
     * Allocate buffers on device and prepare data
     **********************************************/
@@ -171,6 +177,9 @@ int main(int argc, char** argv) {
     xrt::bo buffer_inp(device, 196608, XRT_BO_FLAGS_NONE, kernel.group_id(1));
     xrt::bo buffer_fcw(device, 28311552 * 4, XRT_BO_FLAGS_NONE, kernel.group_id(2));
     xrt::bo buffer_fcb(device, 36864 * 4, XRT_BO_FLAGS_NONE, kernel.group_id(3));
+    xrt::bo buffer_rn_seq_1(device, SN_LEN * 4, XRT_BO_FLAGS_NONE, kernel.group_id(4));
+    xrt::bo buffer_rn_seq_2(device, SN_LEN * 4, XRT_BO_FLAGS_NONE, kernel.group_id(5));
+
 
     // 5. Transfer data to device
     buffer_c_fc_outputs.write(c_fc_outputs);
@@ -181,6 +190,10 @@ int main(int argc, char** argv) {
     buffer_fcw.sync(XCL_BO_SYNC_BO_TO_DEVICE);
     buffer_fcb.write(model_params.fcb);
     buffer_fcb.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+    buffer_rn_seq_1.write(halton_sequence_base_2);
+    buffer_rn_seq_1.sync(XCL_BO_SYNC_BO_TO_DEVICE);    
+    buffer_rn_seq_2.write(halton_sequence_base_3);
+    buffer_rn_seq_2.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
     printf("mem allocation successful\n");
 
@@ -190,6 +203,8 @@ int main(int argc, char** argv) {
     run.set_arg(nargs++, buffer_inp);
     run.set_arg(nargs++, buffer_fcw);
     run.set_arg(nargs++, buffer_fcb);
+    run.set_arg(nargs++, buffer_rn_seq_1);
+    run.set_arg(nargs++, buffer_rn_seq_2);
     run.set_arg(nargs++, B);
     run.set_arg(nargs++, T);
     run.set_arg(nargs++, C);
