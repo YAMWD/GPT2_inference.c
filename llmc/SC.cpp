@@ -38,6 +38,8 @@ ap_uint<24> next_lfsr24(ap_uint<24> g_lfsr_state)
     #pragma HLS inline 
     bool new_bit = g_lfsr_state[23] ^ g_lfsr_state[22] ^ g_lfsr_state[20] ^ g_lfsr_state[19];
     g_lfsr_state = (g_lfsr_state << 1) | new_bit;
+    // bool new_bit = g_lfsr_state[0] ^ g_lfsr_state[1] ^ g_lfsr_state[3] ^ g_lfsr_state[4];
+    // g_lfsr_state = (g_lfsr_state >> 1) | (new_bit << 23);
     return g_lfsr_state; 
 }
 

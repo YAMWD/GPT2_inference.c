@@ -469,8 +469,8 @@ int main(int argc, char** argv) {
     /********************************************
     * Allocate buffers on device and prepare data
     **********************************************/
-
     // 4. Create device buffer (aligned to 4096 bytes for best performance)
+
     xrt::bo buffer_model(device, 604 * 4, XRT_BO_FLAGS_NONE, kernel.group_id(0));
     xrt::bo buffer_wte(device, 38597376 * 4, XRT_BO_FLAGS_NONE, kernel.group_id(1));
     xrt::bo buffer_wpe(device, 786432 * 4, XRT_BO_FLAGS_NONE, kernel.group_id(2));
@@ -717,7 +717,7 @@ int main(int argc, char** argv) {
     printf("val dataset num_batches: %zu\n", val_loader.num_tokens / (B*T));
     int train_num_batches = train_loader.num_tokens / (B*T);
     // int val_num_batches = val_loader.num_tokens / (B*T);
-    int val_num_batches = 16;
+    int val_num_batches = 8;
 
     // build the Tokenizer
     Tokenizer tokenizer;

@@ -5,7 +5,7 @@
 #include <ap_int.h>
 
 #define SN_LEN 1024 // Length of the stochastic bitstream
-#define NUM_WIDTH 512
+#define NUM_WIDTH 1024
 #define SN_UNIT (SN_LEN / NUM_WIDTH)
 
 typedef ap_uint<SN_UNIT> SN;
