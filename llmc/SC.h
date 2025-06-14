@@ -3,9 +3,10 @@
 
 #include <ap_fixed.h>
 #include <ap_int.h>
+#include <stdint.h>
 
 #define SN_LEN 1024 // Length of the stochastic bitstream
-#define NUM_WIDTH 1024
+#define NUM_WIDTH 512
 #define SN_UNIT (SN_LEN / NUM_WIDTH)
 
 typedef ap_uint<SN_UNIT> SN;
@@ -26,7 +27,7 @@ ap_uint<24> next_lfsr24(ap_uint<24> g_lfsr_state);
 // SN gen_SN(float p, ap_uint<24> lfsr_state);
 
 // Convert a stochastic bitstream back to a float by averaging the bits.
-float SN_to_float(SN stream[NUM_WIDTH]);
+int64_t SN_to_float(SN stream[NUM_WIDTH]);
 
 void gen_SN(float p, SN stream[NUM_WIDTH]);
 
@@ -39,6 +40,6 @@ void gen_SN(float p, SN stream[NUM_WIDTH]);
 // The inputs a and b are normalized using [min_val, max_val] and then converted into
 // a stochastic bitstream. Their multiplication is performed via bitwise AND, and the
 // result is averaged back into a float.
-float SC_mult(float a, float b, float max_val);
+int64_t SC_mult(float a, float b, float max_val);
 
 #endif // SC_H

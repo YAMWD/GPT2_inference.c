@@ -60,7 +60,7 @@ ap_uint<24> next_lfsr24(ap_uint<24> g_lfsr_state)
 // }
 
 // Average the bits in a stochastic bitstream to recover an approximate float value.
-float SN_to_float(SN stream[NUM_WIDTH]) 
+int64_t SN_to_float(SN stream[NUM_WIDTH]) 
 {
     // up-down counter
     #pragma HLS inline 
@@ -72,7 +72,8 @@ float SN_to_float(SN stream[NUM_WIDTH])
     }
 
     // printf("%d\n\n", sum);
-    return (float)sum / SN_LEN;
+    // return (float)sum / SN_LEN;
+    return sum;
 }
 
 void gen_SN(float p, ap_uint<24> lfsr_state, SN stream[NUM_WIDTH]) 
@@ -114,7 +115,7 @@ void gen_SN(float p, ap_uint<24> lfsr_state, SN stream[NUM_WIDTH])
 // Top-level function for stochastic multiplication.
 // This function normalizes the inputs, converts them to fixed-point, generates the corresponding
 // stochastic bitstreams, performs a bitwise AND for multiplication, and then converts the result back to float.
-float SC_mult(float a, float b, float max_val) 
+int64_t SC_mult(float a, float b, float max_val) 
 {
     #pragma HLS INTERFACE s_axilite port=a      bundle=CTRL
     #pragma HLS INTERFACE s_axilite port=b      bundle=CTRL
@@ -163,5 +164,6 @@ float SC_mult(float a, float b, float max_val)
     // SC_Mul(stream_a, stream_b, stream_out);
 
     // Convert the result bitstream back to a float.
-    return denormalize(SN_to_float(stream_out), max_val);
+    // return denormalize(SN_to_float(stream_out), max_val);
+    return SN_to_float(stream_out);
 }

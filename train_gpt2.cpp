@@ -247,6 +247,7 @@ void matmul_forward(float* out,
             oc_loop: for (int o = 0; o < OC; o++) {
             #pragma HLS loop_tripcount min=768 max=50304
                 float val = (bias != NULL) ? bias[o] : 0.0f;
+                int64_t sum = 0;
                 inner_loop: for (int i = 0; i < C; i++) {
                 // #pragma HLS loop_flatten off
                 #pragma HLS loop_tripcount min=768 max=3072
@@ -264,7 +265,7 @@ void matmul_forward(float* out,
                     //     val += SC_mult(inp[bt * C + i], weight[o * C + i], 1);
                     // }
                     
-                    val += SC_mult(inp[bt * C + i], weight[o * C + i], 1);
+                    sum += SC_mult(inp[bt * C + i], weight[o * C + i], 1);
 
                     // printf("%f %f %f\n\n", inp[bt * C + i], weight[o * C + i], SC_mult(inp[bt * C + i], weight[o * C + i], 1));
                     
@@ -285,15 +286,16 @@ void matmul_forward(float* out,
                     // #else
                     // val += inp[bt * C + i] * weight[o*C + i];
                     // #endif
-                }
-                out[bt * OC + o] = val;
-                // break;
-            }
-            // break;
-        }
-        // break;
-    }
 
+                    
+                }
+                out[bt * OC + o] = val + (float)sum / SN_LEN;
+                break;
+            }
+            break;
+        }
+        break;
+    }
     
     // printf("weight min: %f max: %f \n\n", weight_min, weight_max);
     // printf("input min: %f max: %f \n\n", input_min, input_max);
