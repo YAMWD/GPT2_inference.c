@@ -290,11 +290,11 @@ void matmul_forward(float* out,
                     
                 }
                 out[bt * OC + o] = val + (float)sum / SN_LEN;
-                break;
+                // break;
             }
-            break;
+            // break;
         }
-        break;
+        // break;
     }
     
     // printf("weight min: %f max: %f \n\n", weight_min, weight_max);
