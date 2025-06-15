@@ -167,8 +167,8 @@ int main(int argc, char** argv) {
     **********************************************/
 
     // 4. Create device buffer (aligned to 4096 bytes for best performance)
-    xrt::bo buffer_c_fc_outputs(device, 786432, XRT_BO_FLAGS_NONE, kernel.group_id(0));
-    xrt::bo buffer_inp(device, 196608, XRT_BO_FLAGS_NONE, kernel.group_id(1));
+    xrt::bo buffer_c_fc_outputs(device, 786432 * 4, XRT_BO_FLAGS_NONE, kernel.group_id(0));
+    xrt::bo buffer_inp(device, 196608 * 4, XRT_BO_FLAGS_NONE, kernel.group_id(1));
     xrt::bo buffer_fcw(device, 28311552 * 4, XRT_BO_FLAGS_NONE, kernel.group_id(2));
     xrt::bo buffer_fcb(device, 36864 * 4, XRT_BO_FLAGS_NONE, kernel.group_id(3));
 
