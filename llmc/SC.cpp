@@ -64,6 +64,8 @@ float SN_to_float(SN stream[NUM_WIDTH])
 {
     // up-down counter
     #pragma HLS inline 
+    #pragma HLS ARRAY_PARTITION variable=stream complete
+
     int64_t sum = 0;
     SN_to_BN: for (int i = 0; i < SN_UNIT; i++) {
     #pragma HLS pipeline II=1
@@ -78,6 +80,7 @@ float SN_to_float(SN stream[NUM_WIDTH])
 void gen_SN(float p, ap_uint<24> lfsr_state, SN stream[NUM_WIDTH]) 
 {
     #pragma HLS inline
+    #pragma HLS ARRAY_PARTITION variable=stream complete
 
     ap_uint<24> threshold = float_to_fixed24(p);
 

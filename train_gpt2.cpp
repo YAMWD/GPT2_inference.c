@@ -264,7 +264,7 @@ void matmul_forward(float* out,
                     //     val += SC_mult(inp[bt * C + i], weight[o * C + i], 1);
                     // }
                     
-                    val += SC_mult(inp[bt * C + i], weight[o * C + i], 1);
+                    val += SC_mult(inp[bt * C + i], weight[o * C + i], max_val);
 
                     // printf("%f %f %f\n\n", inp[bt * C + i], weight[o * C + i], SC_mult(inp[bt * C + i], weight[o * C + i], 1));
                     
