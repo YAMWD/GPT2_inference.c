@@ -5,14 +5,14 @@
 #include <ap_int.h>
 #include <stdint.h>
 
-#define SN_LEN 1024 // Length of the stochastic bitstream
+#define SN_LEN 32768 // Length of the stochastic bitstream
 #define NUM_WIDTH 512
 #define SN_UNIT (SN_LEN / NUM_WIDTH)
 
 typedef ap_uint<SN_UNIT> SN;
 
 // Normalize a float to [0,1) given a known min and max range.
-float normalize_clip(float x, float max_val);
+float normalize_clip(float x);
 
 // Denormalize
 float denormalize(float x, float max_val);
@@ -40,6 +40,6 @@ void gen_SN(float p, SN stream[NUM_WIDTH]);
 // The inputs a and b are normalized using [min_val, max_val] and then converted into
 // a stochastic bitstream. Their multiplication is performed via bitwise AND, and the
 // result is averaged back into a float.
-int64_t SC_mult(float a, float b, float max_val);
+int64_t SC_mult(float a, float b);
 
 #endif // SC_H

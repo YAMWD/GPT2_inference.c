@@ -230,13 +230,13 @@ void matmul_forward(float* out,
     // C = 768;
     // OC = 3072;
 
-    float weight_max = -0x3f3f3f;
-    float weight_min = 0x3f3f3f;
+    // float weight_max = -0x3f3f3f;
+    // float weight_min = 0x3f3f3f;
 
-    float input_max = -0x3f3f3f;
-    float input_min = 0x3f3f3f;
+    // float input_max = -0x3f3f3f;
+    // float input_min = 0x3f3f3f;
 
-    float max_val = 4.587719;
+    // float max_val = 4.587719;
 
     // #pragma omp parallel for collapse(2)
     batch_loop: for (int b = 0; b < B; b++) {
@@ -265,7 +265,7 @@ void matmul_forward(float* out,
                     //     val += SC_mult(inp[bt * C + i], weight[o * C + i], 1);
                     // }
                     
-                    sum += SC_mult(inp[bt * C + i], weight[o * C + i], 1);
+                    sum += SC_mult(inp[bt * C + i], weight[o * C + i]);
 
                     // printf("%f %f %f\n\n", inp[bt * C + i], weight[o * C + i], SC_mult(inp[bt * C + i], weight[o * C + i], 1));
                     
