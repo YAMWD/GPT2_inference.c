@@ -121,7 +121,7 @@ int64_t SC_mult(float a, float b)
     #pragma HLS INTERFACE s_axilite port=b      bundle=CTRL
     #pragma HLS INTERFACE s_axilite port=return  bundle=CTRL
 
-    #pragma HLS inline
+    // #pragma HLS inline
 
     // Normalize inputs to [0,1) based on the expected range.
     float normed_a = normalize_clip(a);
@@ -145,7 +145,7 @@ int64_t SC_mult(float a, float b)
 
     // bipolar SC mult is done by an XNOR gate
     // SN stream_out = ~(stream_a ^ stream_b);
-    for (int i = 0; i < NUM_WIDTH; i++)
+    SC_MUL: for (int i = 0; i < NUM_WIDTH; i++)
     {
         #pragma HLS unroll
         stream_out[i] = ~(stream_a[i] ^ stream_b[i]);

@@ -18,10 +18,10 @@ open_solution -reset "solution_GPT2_inference"
 set_part xcu280-fsvh2892-2LV-e ;# Set the target FPGA part (modify as needed)
 
 # Run C simulation
-csim_design
+# csim_design
 
 # Run High-Level Synthesis (HLS)
-# csynth_design
+csynth_design
 
 # Run co-simulation
 # cosim_design

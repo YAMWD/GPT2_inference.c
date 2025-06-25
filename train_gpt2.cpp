@@ -289,6 +289,7 @@ void matmul_forward(float* out,
 
                     
                 }
+                // out[bt * OC + o] = val;
                 out[bt * OC + o] = val + (float)sum / SN_LEN;
                 // break;
             }
