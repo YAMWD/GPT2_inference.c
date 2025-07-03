@@ -3,24 +3,24 @@
 #include <math.h>
 
 // Normalize x to the [0,1) range using provided min and max values.
-float normalize_clip(float x, float max_val) 
+float normalize_clip(float x) 
 {
     #pragma HLS inline 
     // normed_x = x / max_val
     // prob = (normed_x + 1) / 2
 
-    float x_norm = x / (max_val + max_val) + 0.5;
+    float x_norm = x / 2 + 0.5;
     if (x_norm >= 1.0f) x_norm = 0.999999f;
     if (x_norm < 0.0f)  x_norm = 0.0f;
     return x_norm;
 }
 
 // Denormalize x
-float denormalize(float x, float max_val) 
+float denormalize(float x) 
 {
     #pragma HLS inline 
     // x * max_val ^ 2
-    return x * max_val * max_val;
+    return x;
 }
 
 // Convert a normalized float (in [0,1)) to a fixed-point representation (Q0.24).
@@ -117,18 +117,17 @@ void gen_SN(float p, ap_uint<24> lfsr_state, SN stream[NUM_WIDTH])
 // Top-level function for stochastic multiplication.
 // This function normalizes the inputs, converts them to fixed-point, generates the corresponding
 // stochastic bitstreams, performs a bitwise AND for multiplication, and then converts the result back to float.
-float SC_mult(float a, float b, float max_val) 
+float SC_mult(float a, float b) 
 {
     #pragma HLS INTERFACE s_axilite port=a      bundle=CTRL
     #pragma HLS INTERFACE s_axilite port=b      bundle=CTRL
-    #pragma HLS INTERFACE s_axilite port=max_val bundle=CTRL
     #pragma HLS INTERFACE s_axilite port=return  bundle=CTRL
 
-    #pragma HLS inline
+    // #pragma HLS inline
 
     // Normalize inputs to [0,1) based on the expected range.
-    float normed_a = normalize_clip(a, max_val);
-    float normed_b = normalize_clip(b, max_val);
+    float normed_a = normalize_clip(a);
+    float normed_b = normalize_clip(b);
 
     // printf("normed a b: %f %f\n", normed_a, normed_b);
 
@@ -166,5 +165,5 @@ float SC_mult(float a, float b, float max_val)
     // SC_Mul(stream_a, stream_b, stream_out);
 
     // Convert the result bitstream back to a float.
-    return denormalize(SN_to_float(stream_out), max_val);
+    return denormalize(SN_to_float(stream_out));
 }

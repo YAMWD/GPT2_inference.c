@@ -4,17 +4,17 @@
 #include <ap_fixed.h>
 #include <ap_int.h>
 
-#define SN_LEN 1024 // stochastic bitstream length
-#define NUM_WIDTH 1024
+#define SN_LEN 32768 // stochastic bitstream length
+#define NUM_WIDTH 512
 #define SN_UNIT (SN_LEN / NUM_WIDTH)
 
 typedef ap_uint<SN_UNIT> SN;
 
 // Normalize a float to [0,1) given a known min and max range.
-float normalize_clip(float x, float max_val);
+float normalize_clip(float x);
 
 // Denormalize
-float denormalize(float x, float max_val);
+float denormalize(float x);
 
 // Convert a normalized float (assumed in [0,1)) to fixed-point in Q0.24.
 ap_uint<24> float_to_fixed24(float x_norm);
@@ -39,6 +39,6 @@ void gen_SN(float p, SN stream[NUM_WIDTH]);
 // The inputs a and b are normalized using [min_val, max_val] and then converted into
 // a stochastic bitstream. Their multiplication is performed via bitwise AND, and the
 // result is averaged back into a float.
-float SC_mult(float a, float b, float max_val);
+float SC_mult(float a, float b);
 
 #endif // SC_H
